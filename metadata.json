@@ -1,0 +1,6 @@
+{
+  "name": "Calibara Apartment Cloud Landlord Billing & Payment Tracker",
+  "description": "Cloud-synchronized billing, submeter tracker, and payment receipt manager for Calibara Apartment units with live Google Apps Script sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
