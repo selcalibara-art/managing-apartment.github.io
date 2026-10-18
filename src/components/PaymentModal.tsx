@@ -15,6 +15,7 @@ import {
   getAmountPaid,
   getBillPaymentStatus,
   getRoundedTotalDue,
+  formatDisplayDate,
 } from '../utils/billing';
 import { compressImage } from '../utils/imageCompressor';
 import { CurrencyText } from './CurrencyText';
@@ -45,7 +46,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     initialPaidAmount > 0 ? String(initialPaidAmount) : String(roundedTotalDue)
   );
   const [datePaid, setDatePaid] = useState<string>(
-    bill.paymentProof?.datePaid || new Date().toISOString().slice(0, 10)
+    formatDisplayDate(bill.paymentProof?.datePaid) || new Date().toISOString().slice(0, 10)
   );
   const [paymentMethod, setPaymentMethod] = useState<
     'GCash' | 'Maya' | 'Bank Transfer' | 'Cash' | 'Other'

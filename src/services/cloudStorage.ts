@@ -1,4 +1,4 @@
-import { Bill, ApartmentUnit, UnitInfo, INITIAL_UNIT_INFO } from '../utils/billing';
+import { Bill, ApartmentUnit, UnitInfo, INITIAL_UNIT_INFO, formatDisplayDate } from '../utils/billing';
 
 export const DEFAULT_GAS_URL =
   'https://script.google.com/macros/s/AKfycby3-Le2s1KPRGPOu7F64k24eNONenQVbguofmEHoFN312C4MFh1dPk6jKofHWT9Q-e2/exec';
@@ -49,8 +49,32 @@ export function saveProofRecordLocally(bill: Bill): void {
   }
 }
 
-function hydrateBillWithSavedProof(bill: Bill): Bill {
-  if (typeof window === 'undefined' || !bill?.id) return bill;
+function sanitizeBillDates(bill: Bill): Bill {
+  if (!bill) return bill;
+  const cleanBillingDate = formatDisplayDate(bill.billingDate);
+  const cleanProof = bill.paymentProof
+    ? {
+        ...bill.paymentProof,
+        datePaid: formatDisplayDate(bill.paymentProof.datePaid),
+      }
+    : bill.paymentProof;
+  const cleanPeriod = (bill.billingPeriod || '')
+    .replace(/\s*\([^)]*Oras[^)]*\)/gi, '')
+    .replace(/\s*\([^)]*Time[^)]*\)/gi, '')
+    .replace(/\s*GMT[+-]\d{4}/gi, '')
+    .trim();
+
+  return {
+    ...bill,
+    billingDate: cleanBillingDate || bill.billingDate,
+    billingPeriod: cleanPeriod || bill.billingPeriod,
+    paymentProof: cleanProof,
+  };
+}
+
+function hydrateBillWithSavedProof(rawBill: Bill): Bill {
+  if (typeof window === 'undefined' || !rawBill?.id) return rawBill;
+  const bill = sanitizeBillDates(rawBill);
   const map = getSavedProofsMap();
   const saved = map[bill.id];
   if (!saved) return bill;
@@ -60,7 +84,7 @@ function hydrateBillWithSavedProof(bill: Bill): Bill {
 
   // If saved proof record is newer or if bill from cloud is missing the receipt dataUrl / amountPaid
   if (savedTime >= billTime) {
-    return {
+    return sanitizeBillDates({
       ...bill,
       isPaid: saved.isPaid,
       paymentStatus: saved.paymentStatus || bill.paymentStatus,
@@ -72,18 +96,18 @@ function hydrateBillWithSavedProof(bill: Bill): Bill {
           }
         : bill.paymentProof,
       updatedAt: saved.updatedAt || bill.updatedAt,
-    };
+    });
   }
 
   // Even if cloud bill is newer, preserve receipt image dataUrl if cloud stripped it
   if (saved.paymentProof?.dataUrl && bill.paymentProof && !bill.paymentProof.dataUrl) {
-    return {
+    return sanitizeBillDates({
       ...bill,
       paymentProof: {
         ...bill.paymentProof,
         dataUrl: saved.paymentProof.dataUrl,
       },
-    };
+    });
   }
 
   return bill;

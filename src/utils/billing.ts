@@ -252,19 +252,85 @@ export function getPreviousReadingForUnit(bills: Bill[], unit: ApartmentUnit): n
   return unitBills[0].currentReading;
 }
 
+const SHORT_MONTH_TO_NUM: Record<string, string> = {
+  jan: '01',
+  feb: '02',
+  mar: '03',
+  apr: '04',
+  may: '05',
+  jun: '06',
+  jul: '07',
+  aug: '08',
+  sep: '09',
+  oct: '10',
+  nov: '11',
+  dec: '12',
+};
+
+/**
+ * Formats any date string cleanly into YYYY-MM-DD (or clean text), stripping verbose
+ * JavaScript/Google Sheets Date.toString() timezones like "GMT+0800 (Standard na Oras sa Singapore)"
+ * without timezone-offset day shifts.
+ */
+export function formatDisplayDate(rawDate?: string | null): string {
+  if (!rawDate) return '';
+  const trimmed = String(rawDate).trim();
+  if (!trimmed) return '';
+
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // ISO string starting with YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+    return trimmed.slice(0, 10);
+  }
+
+  // Match JS/Google Sheets Date.toString(): e.g. "Sat Oct 17 2026 00:00:00 GMT+0800 (Standard na Oras sa Singapore)"
+  const jsDateMatch = trimmed.match(
+    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s+(\d{4})\b/i
+  );
+  if (jsDateMatch) {
+    const monthNum = SHORT_MONTH_TO_NUM[jsDateMatch[1].slice(0, 3).toLowerCase()];
+    const dayNum = String(parseInt(jsDateMatch[2], 10)).padStart(2, '0');
+    const yearNum = jsDateMatch[3];
+    if (monthNum) {
+      return `${yearNum}-${monthNum}-${dayNum}`;
+    }
+  }
+
+  // Strip parenthetical timezone e.g. "(Standard na Oras sa Singapore)" or "(Singapore Standard Time)" and "GMT+0800..."
+  const cleaned = trimmed
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .replace(/\s*GMT[+-]\d{4}.*$/i, '')
+    .replace(/\s+\d{2}:\d{2}:\d{2}\b.*$/i, '')
+    .trim();
+
+  const parsed = new Date(cleaned);
+  if (!isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  return cleaned;
+}
+
 /**
  * Extracts canonical YYYY-MM month key from a Bill's billingDate or createdAt
  */
 export function getBillMonthKey(bill: Bill): string {
-  const rawDate = (bill.billingDate || '').trim();
-  if (/^\d{4}-\d{2}/.test(rawDate)) {
-    return rawDate.slice(0, 7);
+  const cleanBilling = formatDisplayDate(bill.billingDate);
+  if (/^\d{4}-\d{2}/.test(cleanBilling)) {
+    return cleanBilling.slice(0, 7);
   }
-  const rawCreated = (bill.createdAt || '').trim();
-  if (/^\d{4}-\d{2}/.test(rawCreated)) {
-    return rawCreated.slice(0, 7);
+  const cleanCreated = formatDisplayDate(bill.createdAt);
+  if (/^\d{4}-\d{2}/.test(cleanCreated)) {
+    return cleanCreated.slice(0, 7);
   }
-  const parsed = new Date(rawDate || rawCreated || Date.now());
+  const parsed = new Date(bill.billingDate || bill.createdAt || Date.now());
   if (!isNaN(parsed.getTime())) {
     const y = parsed.getFullYear();
     const m = String(parsed.getMonth() + 1).padStart(2, '0');

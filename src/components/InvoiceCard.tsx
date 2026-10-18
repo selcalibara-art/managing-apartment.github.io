@@ -21,6 +21,7 @@ import {
   getBillPaymentStatus,
   hasPaymentProofDetails,
   getRoundedTotalDue,
+  formatDisplayDate,
 } from '../utils/billing';
 import { CurrencyText } from './CurrencyText';
 
@@ -242,7 +243,7 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
                 </span>
                 {bill.paymentProof?.datePaid && (
                   <span className="text-[11px] font-semibold text-emerald-700 tracking-wider uppercase mt-0.5">
-                    {bill.paymentProof.datePaid}
+                    {formatDisplayDate(bill.paymentProof.datePaid)}
                   </span>
                 )}
                 {bill.paymentProof?.referenceNo && (
@@ -524,7 +525,7 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
                       Method & Date
                     </span>
                     <span className="font-semibold text-stone-800">
-                      {bill.paymentProof.paymentMethod} • {bill.paymentProof.datePaid || 'N/A'}
+                      {bill.paymentProof.paymentMethod} • {formatDisplayDate(bill.paymentProof.datePaid) || 'N/A'}
                     </span>
                   </div>
                 )}

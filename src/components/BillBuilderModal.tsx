@@ -11,6 +11,7 @@ import {
   calculateTotalDue,
   formatCurrency,
   getPreviousReadingForUnit,
+  formatDisplayDate,
 } from '../utils/billing';
 import { CurrencyText, PesoSymbol } from './CurrencyText';
 import { InvoiceCard } from './InvoiceCard';
@@ -69,7 +70,9 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
           DEFAULT_PROPERTY_ADDRESS
       );
       setBillingPeriod(initialBill.billingPeriod);
-      setBillingDate(initialBill.billingDate || new Date().toISOString().slice(0, 10));
+      setBillingDate(
+        formatDisplayDate(initialBill.billingDate) || new Date().toISOString().slice(0, 10)
+      );
       setLastReading(initialBill.lastReading);
       setCurrentReading(initialBill.currentReading);
       setRatePerKwh(initialBill.ratePerKwh);

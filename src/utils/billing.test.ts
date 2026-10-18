@@ -10,6 +10,7 @@ import {
   formatWholeCurrency,
   formatReading,
   formatKwh,
+  formatDisplayDate,
   getPreviousReadingForUnit,
   getAmountPaid,
   getRemainingBalance,
@@ -60,6 +61,14 @@ test('formatReading and formatKwh format numbers properly', () => {
   assert.equal(formatReading(0), '0.0');
   assert.equal(formatReading(12.4), '12.4');
   assert.equal(formatKwh(15.2), '15.2 kWh');
+});
+
+test('formatDisplayDate strips (Standard na Oras sa Singapore) and formats clean YYYY-MM-DD', () => {
+  assert.equal(
+    formatDisplayDate('Sat Oct 17 2026 00:00:00 GMT+0800 (Standard na Oras sa Singapore)'),
+    '2026-10-17'
+  );
+  assert.equal(formatDisplayDate('2026-10-05'), '2026-10-05');
 });
 
 test('getPreviousReadingForUnit returns most recent current reading', () => {

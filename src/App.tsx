@@ -40,6 +40,7 @@ import {
   hasPaymentProofDetails,
   getAvailableMonths,
   getBillMonthKey,
+  formatDisplayDate,
 } from './utils/billing';
 import { CurrencyText } from './components/CurrencyText';
 import {
@@ -848,7 +849,7 @@ export default function App() {
                         {bill.billingPeriod}
                       </h4>
                       <p className="text-[11px] text-stone-500 font-medium">
-                        Date: {bill.billingDate || bill.createdAt.slice(0, 10)}
+                        Date: {formatDisplayDate(bill.billingDate || bill.createdAt)}
                       </p>
                     </div>
 
@@ -989,7 +990,7 @@ export default function App() {
                                 <span>Receipt Attached</span>
                               </p>
                               <p className="text-[10px] text-stone-600 truncate">
-                                {bill.paymentProof.datePaid || 'Recorded'} •{' '}
+                                {formatDisplayDate(bill.paymentProof.datePaid) || 'Recorded'} •{' '}
                                 {bill.paymentProof.paymentMethod || 'Payment'}
                                 {bill.paymentProof.referenceNo
                                   ? ` • Ref: ${bill.paymentProof.referenceNo}`
@@ -1020,7 +1021,7 @@ export default function App() {
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
                               <p className="text-[10px] font-semibold text-stone-700 truncate">
-                                {bill.paymentProof?.datePaid || 'Recorded'} •{' '}
+                                {formatDisplayDate(bill.paymentProof?.datePaid) || 'Recorded'} •{' '}
                                 {bill.paymentProof?.paymentMethod || 'Payment'}
                                 {bill.paymentProof?.referenceNo
                                   ? ` • Ref: ${bill.paymentProof.referenceNo}`
