@@ -21,6 +21,9 @@ import {
   getAvailableMonths,
   computeMonthlyTrendSeries,
   computeMonthlyReport,
+  isViewerModeFromUrl,
+  buildViewerShareUrl,
+  computeUnitPaymentTracker,
   INITIAL_UNIT_INFO,
 } from './billing.ts';
 import type { Bill } from './billing.ts';
@@ -260,4 +263,84 @@ test('monthly report and trend helpers aggregate consumption, collection rates, 
   assert.equal(octReport.collectionRateDeltaPts, -22.4); // 100% -> 77.6% = -22.4 pts
   assert.deepEqual(octReport.highestConsumingUnit, { unit: 'UNIT S1', kwh: 60 });
 });
+
+test('viewer mode URL detection and unit payment tracker helpers work properly', () => {
+  assert.equal(isViewerModeFromUrl('?view=mom'), true);
+  assert.equal(isViewerModeFromUrl('?mode=viewer'), true);
+  assert.equal(isViewerModeFromUrl('?readonly=1'), true);
+  assert.equal(isViewerModeFromUrl('', '#mom'), true);
+  assert.equal(isViewerModeFromUrl(''), false);
+
+  assert.equal(
+    buildViewerShareUrl('https://selcalibara-art.github.io/managing-apartment.github.io/'),
+    'https://selcalibara-art.github.io/managing-apartment.github.io/?view=mom'
+  );
+
+  const trackerBills: Bill[] = [
+    {
+      id: 'b-s1',
+      unit: 'UNIT S1',
+      billingPeriod: 'October 2026',
+      billingDate: '2026-10-15',
+      lastReading: 140,
+      currentReading: 200,
+      consumptionKwh: 60,
+      ratePerKwh: 15,
+      electricityTotal: 900,
+      rentItems: [{ id: '1', description: 'Monthly Rent', amount: 5000 }],
+      totalAmountDue: 5900,
+      isPaid: true,
+      paymentStatus: 'PAID',
+      paymentProof: {
+        amountPaid: 5900,
+        paymentMethod: 'GCash',
+        datePaid: '2026-10-16',
+        referenceNo: 'GC12345',
+        dataUrl: 'data:image/jpeg;base64,receipt1',
+      },
+      createdAt: '2026-10-15T00:00:00.000Z',
+      updatedAt: '2026-10-16T00:00:00.000Z',
+    },
+    {
+      id: 'b-a1',
+      unit: 'UNIT A1',
+      billingPeriod: 'October 2026',
+      billingDate: '2026-10-16',
+      lastReading: 50,
+      currentReading: 70,
+      consumptionKwh: 20,
+      ratePerKwh: 15,
+      electricityTotal: 300,
+      rentItems: [{ id: '1', description: 'Monthly Rent', amount: 4500 }],
+      totalAmountDue: 4800,
+      isPaid: false,
+      paymentStatus: 'PARTIAL',
+      paymentProof: { amountPaid: 2000, paymentMethod: 'Cash', datePaid: '2026-10-17' },
+      createdAt: '2026-10-16T00:00:00.000Z',
+      updatedAt: '2026-10-17T00:00:00.000Z',
+    },
+  ];
+
+  const tracker = computeUnitPaymentTracker(trackerBills, INITIAL_UNIT_INFO, 'ALL');
+  const s1 = tracker.find((u) => u.unit === 'UNIT S1')!;
+  const a1 = tracker.find((u) => u.unit === 'UNIT A1')!;
+  const b = tracker.find((u) => u.unit === 'UNIT B')!;
+
+  assert.equal(s1.status, 'PAID');
+  assert.equal(s1.amountPaid, 5900);
+  assert.equal(s1.remainingBalance, 0);
+  assert.equal(s1.hasProof, true);
+  assert.equal(s1.hasReceiptImage, true);
+  assert.equal(s1.referenceNo, 'GC12345');
+
+  assert.equal(a1.status, 'PARTIAL');
+  assert.equal(a1.amountPaid, 2000);
+  assert.equal(a1.remainingBalance, 2800);
+  assert.equal(a1.unpaidBillsCount, 1);
+  assert.equal(a1.totalUnpaidBalance, 2800);
+
+  assert.equal(b.status, 'NO_BILL');
+  assert.equal(b.latestBill, null);
+});
+
 

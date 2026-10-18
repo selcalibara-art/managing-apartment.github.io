@@ -158,17 +158,23 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
     <div className="flex flex-col items-center w-full">
       {/* Top Controls Bar for Invoice */}
       <div className="w-full max-w-[440px] mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
-        <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-stone-700 bg-white px-3 py-1.5 rounded-full border border-stone-200 shadow-2xs hover:bg-stone-50 transition-colors">
-          <input
-            type="checkbox"
-            checked={showPaidWatermark}
-            onChange={(e) => setShowPaidWatermark(e.target.checked)}
-            className="w-3.5 h-3.5 rounded text-emerald-700 focus:ring-emerald-600 accent-emerald-700 cursor-pointer"
-          />
-          <span>
-            {paymentStatus === 'PARTIAL' ? 'Show PARTIAL Stamp' : 'Show PAID Stamp'}
+        {onMarkAsPaid ? (
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-stone-700 bg-white px-3 py-1.5 rounded-full border border-stone-200 shadow-2xs hover:bg-stone-50 transition-colors">
+            <input
+              type="checkbox"
+              checked={showPaidWatermark}
+              onChange={(e) => setShowPaidWatermark(e.target.checked)}
+              className="w-3.5 h-3.5 rounded text-emerald-700 focus:ring-emerald-600 accent-emerald-700 cursor-pointer"
+            />
+            <span>
+              {paymentStatus === 'PARTIAL' ? 'Show PARTIAL Stamp' : 'Show PAID Stamp'}
+            </span>
+          </label>
+        ) : (
+          <span className="text-xs font-semibold text-stone-600 px-1">
+            Official Billing Statement
           </span>
-        </label>
+        )}
 
         <div className="flex items-center gap-2">
           <button
