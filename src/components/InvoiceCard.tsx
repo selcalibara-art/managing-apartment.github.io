@@ -1,11 +1,24 @@
 import React, { useRef, useState } from 'react';
 import { toPng, toBlob } from 'html-to-image';
-import { Download, Share2, Check, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import {
+  Download,
+  Share2,
+  Check,
+  Image as ImageIcon,
+  CheckCircle2,
+  Clock,
+  Eye,
+  CreditCard,
+} from 'lucide-react';
 import {
   Bill,
   formatReading,
   formatKwh,
   DEFAULT_PROPERTY_ADDRESS,
+  getAmountPaid,
+  getRemainingBalance,
+  getBillPaymentStatus,
+  hasPaymentProofDetails,
 } from '../utils/billing';
 import { CurrencyText } from './CurrencyText';
 
@@ -14,6 +27,7 @@ interface InvoiceCardProps {
   unitAddress?: string;
   showPaidWatermarkDefault?: boolean;
   onMarkAsPaid?: () => void;
+  onViewReceiptFull?: (url: string, title: string) => void;
 }
 
 export const InvoiceCard: React.FC<InvoiceCardProps> = ({
@@ -21,13 +35,20 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
   unitAddress,
   showPaidWatermarkDefault = false,
   onMarkAsPaid,
+  onViewReceiptFull,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+
+  const paymentStatus = getBillPaymentStatus(bill);
+  const amountPaid = getAmountPaid(bill);
+  const remainingBalance = getRemainingBalance(bill);
+  const hasProof = hasPaymentProofDetails(bill);
+
   const [showPaidWatermark, setShowPaidWatermark] = useState(
-    bill.isPaid || showPaidWatermarkDefault
+    paymentStatus === 'PAID' || paymentStatus === 'PARTIAL' || showPaidWatermarkDefault
   );
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -59,7 +80,6 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
       setTimeout(() => setDownloadSuccess(false), 3000);
     } catch (err) {
       console.error('Error generating invoice image:', err);
-      // Fallback: Show preview modal so user can save or long-press
       try {
         if (cardRef.current) {
           const fallbackDataUrl = await toPng(cardRef.current, {
@@ -68,7 +88,7 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
           });
           setPreviewImageUrl(fallbackDataUrl);
         }
-      } catch (fallbackErr) {
+      } catch {
         alert('Could not generate image automatically. You can use the "Share" button or take a screenshot.');
       }
     } finally {
@@ -113,7 +133,11 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
           });
         } catch {}
       } else {
-        const textSummary = `CALIBARA APARTMENT INVOICE\nUnit: ${bill.unit}\nPeriod: ${bill.billingPeriod}\nTotal Consumption: ${formatKwh(bill.consumptionKwh)}\nTotal Electricity: ₱${bill.electricityTotal.toFixed(2)}\nTOTAL AMOUNT DUE: ₱${bill.totalAmountDue.toFixed(2)}`;
+        const textSummary = `CALIBARA APARTMENT INVOICE\nUnit: ${bill.unit}\nPeriod: ${bill.billingPeriod}\nTotal Consumption: ${formatKwh(bill.consumptionKwh)}\nTotal Electricity: ₱${bill.electricityTotal.toFixed(2)}\nTOTAL AMOUNT DUE: ₱${bill.totalAmountDue.toFixed(2)}${
+          paymentStatus === 'PARTIAL'
+            ? `\nAmount Paid: ₱${amountPaid.toFixed(2)}\nRemaining Balance: ₱${remainingBalance.toFixed(2)}`
+            : ''
+        }`;
         await navigator.clipboard.writeText(textSummary);
         setCopiedLink(true);
         setTimeout(() => setCopiedLink(false), 2500);
@@ -137,7 +161,9 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
             onChange={(e) => setShowPaidWatermark(e.target.checked)}
             className="w-3.5 h-3.5 rounded text-emerald-700 focus:ring-emerald-600 accent-emerald-700 cursor-pointer"
           />
-          <span>Show PAID Stamp</span>
+          <span>
+            {paymentStatus === 'PARTIAL' ? 'Show PARTIAL Stamp' : 'Show PAID Stamp'}
+          </span>
         </label>
 
         <div className="flex items-center gap-2">
@@ -191,24 +217,38 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
           color: '#2C332B',
         }}
       >
-        {/* Optional PAID Stamp Watermark Overlay */}
+        {/* Optional PAID or PARTIAL Stamp Watermark Overlay */}
         {showPaidWatermark && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-20 select-none opacity-85 rotate-[-15deg]">
-            <div className="border-[3.5px] border-emerald-800/80 rounded-xl px-6 py-2 bg-emerald-50/80 backdrop-blur-2xs flex flex-col items-center shadow-lg">
-              <span className="text-3xl sm:text-4xl font-extrabold tracking-widest text-emerald-800 font-sans">
-                PAID
-              </span>
-              {bill.paymentProof?.datePaid && (
-                <span className="text-[11px] font-semibold text-emerald-700 tracking-wider uppercase mt-0.5">
-                  {bill.paymentProof.datePaid}
+            {paymentStatus === 'PARTIAL' ? (
+              <div className="border-[3.5px] border-amber-700/85 rounded-xl px-5 py-2 bg-amber-50/90 backdrop-blur-2xs flex flex-col items-center shadow-lg">
+                <span className="text-2xl sm:text-3xl font-extrabold tracking-widest text-amber-800 font-sans">
+                  PARTIAL PAID
                 </span>
-              )}
-              {bill.paymentProof?.referenceNo && (
-                <span className="text-[9px] text-emerald-900 font-mono">
-                  REF: {bill.paymentProof.referenceNo}
+                <span className="text-[11px] font-bold text-amber-900 mt-0.5">
+                  PAID: ₱{amountPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </span>
-              )}
-            </div>
+                <span className="text-[10px] font-bold text-rose-800">
+                  BAL DUE: ₱{remainingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            ) : (
+              <div className="border-[3.5px] border-emerald-800/80 rounded-xl px-6 py-2 bg-emerald-50/80 backdrop-blur-2xs flex flex-col items-center shadow-lg">
+                <span className="text-3xl sm:text-4xl font-extrabold tracking-widest text-emerald-800 font-sans">
+                  PAID
+                </span>
+                {bill.paymentProof?.datePaid && (
+                  <span className="text-[11px] font-semibold text-emerald-700 tracking-wider uppercase mt-0.5">
+                    {bill.paymentProof.datePaid}
+                  </span>
+                )}
+                {bill.paymentProof?.referenceNo && (
+                  <span className="text-[9px] text-emerald-900 font-mono">
+                    REF: {bill.paymentProof.referenceNo}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -378,6 +418,28 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
                 <CurrencyText amount={bill.totalAmountDue} />
               </span>
             </div>
+
+            {/* 8. Partial Payment Breakdown Rows (if tenant paid partially) */}
+            {paymentStatus === 'PARTIAL' && amountPaid > 0 && (
+              <>
+                <div className="flex justify-between items-center px-3.5 py-2 bg-[#E8E4DA] text-emerald-900 font-semibold">
+                  <span>
+                    Less: Amount Paid ({bill.paymentProof?.paymentMethod || 'Partial'})
+                  </span>
+                  <span className="font-bold">
+                    - <CurrencyText amount={amountPaid} />
+                  </span>
+                </div>
+                <div className="flex justify-between items-center px-3.5 py-2.5 bg-[#2C332B] text-amber-200 font-heading-invoice">
+                  <span className="text-xs font-bold tracking-[0.12em] uppercase">
+                    REMAINING BALANCE DUE
+                  </span>
+                  <span className="text-sm sm:text-base font-extrabold tracking-tight">
+                    <CurrencyText amount={remainingBalance} />
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -395,6 +457,123 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
           </p>
         </div>
       </div>
+
+      {/* Attached Proof of Payment & Record Card (Shown below Invoice when viewing) */}
+      {(hasProof || onMarkAsPaid) && (
+        <div className="w-full max-w-[420px] mt-4 bg-white rounded-xl border border-stone-200 p-4 shadow-xs text-xs">
+          <div className="flex items-center justify-between border-b border-stone-100 pb-2.5 mb-3">
+            <div className="flex items-center gap-2">
+              {paymentStatus === 'PAID' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              ) : paymentStatus === 'PARTIAL' ? (
+                <Clock className="w-4 h-4 text-amber-600" />
+              ) : (
+                <CreditCard className="w-4 h-4 text-stone-500" />
+              )}
+              <span className="font-bold uppercase tracking-wider text-stone-800">
+                {paymentStatus === 'PAID'
+                  ? 'Paid in Full • Proof of Payment'
+                  : paymentStatus === 'PARTIAL'
+                  ? 'Partial Payment Recorded'
+                  : 'No Payment Recorded Yet'}
+              </span>
+            </div>
+            {onMarkAsPaid && (
+              <button
+                type="button"
+                onClick={onMarkAsPaid}
+                className="px-2.5 py-1 rounded-lg bg-[#2C332B] text-white font-semibold hover:bg-[#1E231D] cursor-pointer text-[11px]"
+              >
+                {hasProof ? 'Update Payment / Proof' : 'Record Payment'}
+              </button>
+            )}
+          </div>
+
+          {hasProof ? (
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-2 bg-stone-50 p-2.5 rounded-lg border border-stone-200">
+                <div>
+                  <span className="text-[10px] text-stone-500 uppercase font-bold block">
+                    Amount Paid
+                  </span>
+                  <span className="text-sm font-extrabold text-emerald-700">
+                    <CurrencyText amount={amountPaid} />
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-stone-500 uppercase font-bold block">
+                    Remaining Balance
+                  </span>
+                  <span
+                    className={`text-sm font-extrabold ${
+                      remainingBalance > 0 ? 'text-rose-700' : 'text-stone-600'
+                    }`}
+                  >
+                    <CurrencyText amount={remainingBalance} />
+                  </span>
+                </div>
+                {bill.paymentProof?.paymentMethod && (
+                  <div>
+                    <span className="text-[10px] text-stone-500 uppercase font-bold block">
+                      Method & Date
+                    </span>
+                    <span className="font-semibold text-stone-800">
+                      {bill.paymentProof.paymentMethod} • {bill.paymentProof.datePaid || 'N/A'}
+                    </span>
+                  </div>
+                )}
+                {bill.paymentProof?.referenceNo && (
+                  <div>
+                    <span className="text-[10px] text-stone-500 uppercase font-bold block">
+                      Reference #
+                    </span>
+                    <span className="font-mono font-semibold text-stone-800">
+                      {bill.paymentProof.referenceNo}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {bill.paymentProof?.notes && (
+                <p className="text-stone-600 bg-stone-50 px-3 py-2 rounded-lg border border-stone-200 italic">
+                  "{bill.paymentProof.notes}"
+                </p>
+              )}
+
+              {bill.paymentProof?.dataUrl && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                    Attached Receipt Screenshot / Photo:
+                  </span>
+                  <div
+                    onClick={() =>
+                      onViewReceiptFull?.(
+                        bill.paymentProof!.dataUrl!,
+                        `${bill.unit} - ${bill.billingPeriod} Payment Receipt`
+                      )
+                    }
+                    className="relative rounded-lg overflow-hidden border border-stone-300 bg-stone-900/5 max-h-60 flex items-center justify-center cursor-pointer group"
+                  >
+                    <img
+                      src={bill.paymentProof.dataUrl}
+                      alt="Attached payment receipt"
+                      className="max-h-56 w-auto object-contain group-hover:scale-[1.02] transition-transform"
+                    />
+                    <div className="absolute bottom-2 right-2 bg-[#2C332B]/90 text-white px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 shadow-sm">
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Tap to Zoom</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-stone-500 text-[11px]">
+              No payment or receipt screenshot attached yet. Click "Record Payment" to log a partial or full payment.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Mobile/Fallback Preview Image Modal */}
       {previewImageUrl && (

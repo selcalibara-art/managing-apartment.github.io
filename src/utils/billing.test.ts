@@ -8,6 +8,10 @@ import {
   formatReading,
   formatKwh,
   getPreviousReadingForUnit,
+  getAmountPaid,
+  getRemainingBalance,
+  getBillPaymentStatus,
+  hasPaymentProofDetails,
 } from './billing.ts';
 import type { Bill } from './billing.ts';
 
@@ -82,4 +86,60 @@ test('getPreviousReadingForUnit returns most recent current reading', () => {
 
   assert.equal(getPreviousReadingForUnit(dummyBills, 'UNIT S1'), 210);
   assert.equal(getPreviousReadingForUnit(dummyBills, 'UNIT A1'), null);
+});
+
+test('partial payment helpers accurately compute paid, remaining, and PARTIAL status', () => {
+  const partialBill: Bill = {
+    id: 'b-partial',
+    unit: 'UNIT A1',
+    billingPeriod: 'October',
+    billingDate: '2026-10-17',
+    lastReading: 10,
+    currentReading: 30,
+    consumptionKwh: 20,
+    ratePerKwh: 15,
+    electricityTotal: 300,
+    rentItems: [{ id: '1', description: 'Rent', amount: 4500 }],
+    totalAmountDue: 4800,
+    isPaid: false,
+    paymentStatus: 'PARTIAL',
+    paymentProof: {
+      amountPaid: 2000,
+      datePaid: '2026-10-17',
+      paymentMethod: 'GCash',
+      referenceNo: '998877',
+      dataUrl: 'data:image/jpeg;base64,abc123',
+    },
+    createdAt: '2026-10-17T00:00:00.000Z',
+    updatedAt: '2026-10-17T00:00:00.000Z',
+  };
+
+  assert.equal(getAmountPaid(partialBill), 2000);
+  assert.equal(getRemainingBalance(partialBill), 2800);
+  assert.equal(getBillPaymentStatus(partialBill), 'PARTIAL');
+  assert.equal(hasPaymentProofDetails(partialBill), true);
+
+  const fullBill: Bill = {
+    ...partialBill,
+    isPaid: true,
+    paymentStatus: 'PAID',
+    paymentProof: {
+      ...partialBill.paymentProof,
+      amountPaid: 4800,
+    },
+  };
+  assert.equal(getAmountPaid(fullBill), 4800);
+  assert.equal(getRemainingBalance(fullBill), 0);
+  assert.equal(getBillPaymentStatus(fullBill), 'PAID');
+
+  const unpaidBill: Bill = {
+    ...partialBill,
+    isPaid: false,
+    paymentStatus: 'UNPAID',
+    paymentProof: undefined,
+  };
+  assert.equal(getAmountPaid(unpaidBill), 0);
+  assert.equal(getRemainingBalance(unpaidBill), 4800);
+  assert.equal(getBillPaymentStatus(unpaidBill), 'UNPAID');
+  assert.equal(hasPaymentProofDetails(unpaidBill), false);
 });

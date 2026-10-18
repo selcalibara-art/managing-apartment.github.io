@@ -18,6 +18,8 @@ export const INITIAL_APARTMENT_UNITS: string[] = [
 
 export const APARTMENT_UNITS = INITIAL_APARTMENT_UNITS;
 
+export type PaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID';
+
 export interface PaymentProof {
   dataUrl?: string; // compressed base64 image
   datePaid?: string;
@@ -25,6 +27,7 @@ export interface PaymentProof {
   referenceNo?: string;
   notes?: string;
   amountPaid?: number;
+  paymentStatus?: PaymentStatus;
 }
 
 export interface Bill {
@@ -41,6 +44,7 @@ export interface Bill {
   rentItems: RentChargeItem[];
   totalAmountDue: number;
   isPaid: boolean;
+  paymentStatus?: PaymentStatus;
   paymentProof?: PaymentProof;
   createdAt: string; // ISO timestamp
   updatedAt: string; // ISO timestamp
@@ -119,6 +123,63 @@ export function calculateElectricityTotal(consumption: number, ratePerKwh: numbe
 export function calculateTotalDue(electricityTotal: number, rentItems: RentChargeItem[]): number {
   const rentSum = rentItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
   return Number((electricityTotal + rentSum).toFixed(2));
+}
+
+/**
+ * Returns the actual amount paid by the tenant for a given bill
+ */
+export function getAmountPaid(bill: Bill): number {
+  if (bill.paymentProof && typeof bill.paymentProof.amountPaid === 'number' && !isNaN(bill.paymentProof.amountPaid)) {
+    return Math.max(0, Number(bill.paymentProof.amountPaid.toFixed(2)));
+  }
+  if (bill.isPaid) {
+    return Number((bill.totalAmountDue || 0).toFixed(2));
+  }
+  return 0;
+}
+
+/**
+ * Returns the remaining balance still owed on a bill
+ */
+export function getRemainingBalance(bill: Bill): number {
+  const paid = getAmountPaid(bill);
+  const remaining = (bill.totalAmountDue || 0) - paid;
+  return Math.max(0, Number(remaining.toFixed(2)));
+}
+
+/**
+ * Determines whether a bill is UNPAID, PARTIAL, or PAID in full
+ */
+export function getBillPaymentStatus(bill: Bill): PaymentStatus {
+  const paid = getAmountPaid(bill);
+  const total = bill.totalAmountDue || 0;
+
+  if (paid > 0 && paid < total - 0.009) {
+    return 'PARTIAL';
+  }
+  if ((paid >= total - 0.009 && total > 0) || (bill.isPaid && paid >= total - 0.009)) {
+    return 'PAID';
+  }
+  if (bill.paymentStatus === 'PARTIAL' && paid > 0) {
+    return 'PARTIAL';
+  }
+  if (bill.isPaid && paid === 0 && total === 0) {
+    return 'PAID';
+  }
+  return 'UNPAID';
+}
+
+/**
+ * Checks whether a bill has any attached payment proof or recorded payment details
+ */
+export function hasPaymentProofDetails(bill: Bill): boolean {
+  if (!bill.paymentProof) return false;
+  return Boolean(
+    bill.paymentProof.dataUrl ||
+      (typeof bill.paymentProof.amountPaid === 'number' && bill.paymentProof.amountPaid > 0) ||
+      bill.paymentProof.referenceNo?.trim() ||
+      bill.paymentProof.notes?.trim()
+  );
 }
 
 /**

@@ -7,8 +7,196 @@ const STORAGE_KEY_API_URL = 'calibara_gas_url';
 const STORAGE_KEY_BILLS = 'calibara_bills_cache';
 const STORAGE_KEY_UNIT_INFO = 'calibara_unit_info_cache';
 const STORAGE_KEY_LAST_SYNC = 'calibara_last_sync_timestamp';
+const STORAGE_KEY_DELETED_BILLS = 'calibara_deleted_bill_ids';
+const STORAGE_KEY_PROOFS_MAP = 'calibara_payment_proofs_map';
 
 export type SyncState = 'synced' | 'syncing' | 'offline' | 'error';
+
+interface SavedProofRecord {
+  isPaid: boolean;
+  paymentStatus?: Bill['paymentStatus'];
+  paymentProof?: Bill['paymentProof'];
+  updatedAt: string;
+}
+
+function getSavedProofsMap(): Record<string, SavedProofRecord> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PROOFS_MAP);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveProofRecordLocally(bill: Bill): void {
+  if (typeof window === 'undefined' || !bill?.id) return;
+  try {
+    const map = getSavedProofsMap();
+    if (!bill.paymentProof && !bill.isPaid && bill.paymentStatus === 'UNPAID') {
+      delete map[bill.id];
+    } else if (bill.paymentProof || bill.isPaid || bill.paymentStatus === 'PARTIAL') {
+      map[bill.id] = {
+        isPaid: bill.isPaid,
+        paymentStatus: bill.paymentStatus || bill.paymentProof?.paymentStatus,
+        paymentProof: bill.paymentProof,
+        updatedAt: bill.updatedAt || new Date().toISOString(),
+      };
+    }
+    localStorage.setItem(STORAGE_KEY_PROOFS_MAP, JSON.stringify(map));
+  } catch (e) {
+    console.warn('Could not persist payment proof backup map:', e);
+  }
+}
+
+function hydrateBillWithSavedProof(bill: Bill): Bill {
+  if (typeof window === 'undefined' || !bill?.id) return bill;
+  const map = getSavedProofsMap();
+  const saved = map[bill.id];
+  if (!saved) return bill;
+
+  const billTime = new Date(bill.updatedAt || bill.createdAt || 0).getTime();
+  const savedTime = new Date(saved.updatedAt || 0).getTime();
+
+  // If saved proof record is newer or if bill from cloud is missing the receipt dataUrl / amountPaid
+  if (savedTime >= billTime) {
+    return {
+      ...bill,
+      isPaid: saved.isPaid,
+      paymentStatus: saved.paymentStatus || bill.paymentStatus,
+      paymentProof: saved.paymentProof
+        ? {
+            ...bill.paymentProof,
+            ...saved.paymentProof,
+            dataUrl: saved.paymentProof.dataUrl || bill.paymentProof?.dataUrl,
+          }
+        : bill.paymentProof,
+      updatedAt: saved.updatedAt || bill.updatedAt,
+    };
+  }
+
+  // Even if cloud bill is newer, preserve receipt image dataUrl if cloud stripped it
+  if (saved.paymentProof?.dataUrl && bill.paymentProof && !bill.paymentProof.dataUrl) {
+    return {
+      ...bill,
+      paymentProof: {
+        ...bill.paymentProof,
+        dataUrl: saved.paymentProof.dataUrl,
+      },
+    };
+  }
+
+  return bill;
+}
+
+export function getDeletedBillIds(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_DELETED_BILLS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function markBillDeletedLocally(billId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = getDeletedBillIds();
+    if (!current.includes(billId)) {
+      localStorage.setItem(STORAGE_KEY_DELETED_BILLS, JSON.stringify([...current, billId]));
+    }
+  } catch (e) {
+    console.error('Failed to record deleted bill id', e);
+  }
+}
+
+/**
+ * Smart two-way merge between local cached bills and cloud bills.
+ * Prevents background cloud sync from overwriting newer local edits, partial payments,
+ * or stripping attached payment proof images.
+ */
+export function mergeCloudAndLocalBills(localBills: Bill[], cloudBills: Bill[]): Bill[] {
+  const deletedSet = new Set(getDeletedBillIds());
+  const localMap = new Map<string, Bill>();
+  const cloudMap = new Map<string, Bill>();
+
+  for (const b of localBills) {
+    if (b && b.id && !deletedSet.has(b.id)) {
+      localMap.set(b.id, hydrateBillWithSavedProof(b));
+    }
+  }
+
+  for (const b of cloudBills) {
+    if (b && b.id && !deletedSet.has(b.id)) {
+      cloudMap.set(b.id, hydrateBillWithSavedProof(b));
+    }
+  }
+
+  const allIds = new Set<string>([...localMap.keys(), ...cloudMap.keys()]);
+  const merged: Bill[] = [];
+
+  for (const id of allIds) {
+    const localBill = localMap.get(id);
+    const cloudBill = cloudMap.get(id);
+
+    if (localBill && !cloudBill) {
+      merged.push(localBill);
+    } else if (!localBill && cloudBill) {
+      merged.push(cloudBill);
+    } else if (localBill && cloudBill) {
+      const localTime = new Date(localBill.updatedAt || localBill.createdAt || 0).getTime();
+      const cloudTime = new Date(cloudBill.updatedAt || cloudBill.createdAt || 0).getTime();
+
+      const primary = localTime >= cloudTime ? localBill : cloudBill;
+      const secondary = localTime >= cloudTime ? cloudBill : localBill;
+
+      const primaryExplicitUnpaid =
+        !primary.isPaid &&
+        (primary.paymentStatus === 'UNPAID' || primary.paymentProof?.paymentStatus === 'UNPAID') &&
+        !primary.paymentProof;
+
+      // Ensure paymentProof (especially receipt image dataUrl & partial amountPaid) is never lost
+      const mergedProof = primaryExplicitUnpaid
+        ? undefined
+        : primary.paymentProof || secondary.paymentProof
+        ? {
+            ...secondary.paymentProof,
+            ...primary.paymentProof,
+            dataUrl: primary.paymentProof?.dataUrl || secondary.paymentProof?.dataUrl,
+            amountPaid:
+              primary.paymentProof?.amountPaid !== undefined
+                ? primary.paymentProof.amountPaid
+                : secondary.paymentProof?.amountPaid,
+            paymentStatus:
+              primary.paymentStatus ||
+              primary.paymentProof?.paymentStatus ||
+              secondary.paymentStatus ||
+              secondary.paymentProof?.paymentStatus,
+          }
+        : undefined;
+
+      merged.push({
+        ...secondary,
+        ...primary,
+        propertyAddress: primary.propertyAddress || secondary.propertyAddress,
+        paymentStatus:
+          primary.paymentStatus ||
+          primary.paymentProof?.paymentStatus ||
+          secondary.paymentStatus ||
+          secondary.paymentProof?.paymentStatus,
+        paymentProof: mergedProof,
+      });
+    }
+  }
+
+  // Sort newest first by createdAt / billingDate
+  return merged.sort(
+    (a, b) =>
+      new Date(b.createdAt || b.billingDate || 0).getTime() -
+      new Date(a.createdAt || a.billingDate || 0).getTime()
+  );
+}
 
 export function getStoredApiUrl(): string {
   if (typeof window === 'undefined') return DEFAULT_GAS_URL;
@@ -25,7 +213,8 @@ export function getCachedBills(): Bill[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_BILLS);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed: Bill[] = JSON.parse(raw);
+    return parsed.map((b) => hydrateBillWithSavedProof(b));
   } catch (e) {
     console.error('Failed to parse cached bills', e);
     return [];
@@ -35,6 +224,9 @@ export function getCachedBills(): Bill[] {
 export function setCachedBills(bills: Bill[]): void {
   if (typeof window === 'undefined') return;
   try {
+    for (const b of bills) {
+      saveProofRecordLocally(b);
+    }
     localStorage.setItem(STORAGE_KEY_BILLS, JSON.stringify(bills));
   } catch (e) {
     console.error('Failed to save bills to localStorage', e);
@@ -142,6 +334,22 @@ export async function saveBillToCloud(bill: Bill): Promise<{ success: boolean; m
 
   try {
     const json = await response.json();
+    // If Google Sheets rejected a cell >50,000 chars, retry saving bill metadata without oversized image
+    if (json.status === 'error' && bill.paymentProof?.dataUrl && bill.paymentProof.dataUrl.length > 42000) {
+      const lighterBill: Bill = {
+        ...bill,
+        paymentProof: {
+          ...bill.paymentProof,
+          dataUrl: undefined,
+        },
+      };
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'SAVE_BILL', bill: lighterBill }),
+      });
+      return { success: true, message: 'Saved (receipt cached locally)' };
+    }
     return { success: json.status === 'success' || json.success === true, message: json.message };
   } catch {
     return { success: true };
@@ -152,6 +360,7 @@ export async function saveBillToCloud(bill: Bill): Promise<{ success: boolean; m
  * Delete a bill from Google Apps Script Web App
  */
 export async function deleteBillFromCloud(billId: string): Promise<{ success: boolean }> {
+  markBillDeletedLocally(billId);
   const url = getStoredApiUrl();
   if (!url) throw new Error('No Cloud API URL configured');
 

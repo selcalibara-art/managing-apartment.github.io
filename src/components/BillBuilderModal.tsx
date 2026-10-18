@@ -178,6 +178,7 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
     rentItems,
     totalAmountDue,
     isPaid: initialBill?.isPaid || false,
+    paymentStatus: initialBill?.paymentStatus,
     paymentProof: initialBill?.paymentProof,
     createdAt: initialBill?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Plus,
   Cloud,
@@ -7,6 +7,7 @@ import {
   Filter,
   CheckCircle2,
   Clock,
+  AlertCircle,
   Zap,
   DollarSign,
   Lock,
@@ -33,6 +34,10 @@ import {
   formatCurrency,
   formatReading,
   formatKwh,
+  getAmountPaid,
+  getRemainingBalance,
+  getBillPaymentStatus,
+  hasPaymentProofDetails,
 } from './utils/billing';
 import { CurrencyText } from './components/CurrencyText';
 import {
@@ -46,6 +51,7 @@ import {
   setCachedUnitInfo,
   getLastSyncTime,
   setLastSyncTime,
+  mergeCloudAndLocalBills,
   SyncState,
 } from './services/cloudStorage';
 import { InvoiceCard } from './components/InvoiceCard';
@@ -65,12 +71,13 @@ export default function App() {
 
   // Filter & Search states
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<ApartmentUnit | 'ALL'>('ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'UNPAID' | 'PAID'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'UNPAID' | 'PARTIAL' | 'PAID'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Cloud Sync state
   const [syncState, setSyncState] = useState<SyncState>('syncing');
   const [lastSyncTime, setLastSyncTimeState] = useState<string | null>(() => getLastSyncTime());
+  const isSavingRef = useRef<boolean>(false);
 
   // Security / PIN Lock state
   const [isPinEnabled, setIsPinEnabled] = useState<boolean>(() => {
@@ -114,6 +121,9 @@ export default function App() {
   };
 
   const handleCloudSync = async (silent = false) => {
+    if (isSavingRef.current && silent) {
+      return;
+    }
     try {
       setSyncState('syncing');
       if (!silent) {
@@ -122,12 +132,16 @@ export default function App() {
       const cloudData = await fetchAllFromCloud();
 
       if (cloudData.bills) {
-        setBills(cloudData.bills);
-        setCachedBills(cloudData.bills);
+        const localCached = getCachedBills();
+        const merged = mergeCloudAndLocalBills(localCached, cloudData.bills);
+        setBills(merged);
+        setCachedBills(merged);
       }
       if (cloudData.unitInfo) {
-        setUnitInfoMap(cloudData.unitInfo);
-        setCachedUnitInfo(cloudData.unitInfo);
+        const localUnits = getCachedUnitInfo();
+        const mergedUnits = { ...localUnits, ...cloudData.unitInfo };
+        setUnitInfoMap(mergedUnits);
+        setCachedUnitInfo(mergedUnits);
       }
 
       const now = new Date().toISOString();
@@ -139,7 +153,7 @@ export default function App() {
       }
     } catch (err) {
       console.warn('Cloud sync fallback to local cache:', err);
-      // Fallback to localStorage cache
+      // Fallback to localStorage cache without losing local edits
       const cached = getCachedBills();
       setBills(cached);
       setSyncState('offline');
@@ -185,16 +199,19 @@ export default function App() {
     };
   }, []);
 
-  // Save bill handler - auto-syncs immediately!
+  // Save bill handler - updates UI & local cache immediately, auto-syncs to cloud in background!
   const handleSaveBill = async (billToSave: Bill) => {
+    isSavingRef.current = true;
     // 1. Update local state and cache immediately (instant UI responsiveness)
-    const existingIndex = bills.findIndex((b) => b.id === billToSave.id);
+    const currentBills = getCachedBills();
+    const baseBills = currentBills.length >= bills.length ? currentBills : bills;
+    const existingIndex = baseBills.findIndex((b) => b.id === billToSave.id);
     let updatedBills: Bill[];
     if (existingIndex >= 0) {
-      updatedBills = [...bills];
+      updatedBills = [...baseBills];
       updatedBills[existingIndex] = billToSave;
     } else {
-      updatedBills = [billToSave, ...bills];
+      updatedBills = [billToSave, ...baseBills];
     }
 
     setBills(updatedBills);
@@ -205,21 +222,25 @@ export default function App() {
       setActiveInvoiceModalBill(billToSave);
     }
 
-    // 2. Auto-sync immediately to Google Apps Script cloud
-    try {
-      setSyncState('syncing');
-      showSyncToast(`Auto-syncing bill for ${billToSave.unit}...`, 'syncing');
-      await saveBillToCloud(billToSave);
-      const now = new Date().toISOString();
-      setLastSyncTime(now);
-      setLastSyncTimeState(now);
-      setSyncState('synced');
-      showSyncToast(`Bill for ${billToSave.unit} auto-synced to cloud!`, 'synced');
-    } catch (err) {
-      console.warn('Cloud save deferred to local cache:', err);
-      setSyncState('offline');
-      showSyncToast('Saved to offline storage (will sync when online)', 'offline');
-    }
+    // 2. Auto-sync immediately to Google Apps Script cloud without blocking modal close
+    (async () => {
+      try {
+        setSyncState('syncing');
+        showSyncToast(`Auto-syncing bill for ${billToSave.unit}...`, 'syncing');
+        await saveBillToCloud(billToSave);
+        const now = new Date().toISOString();
+        setLastSyncTime(now);
+        setLastSyncTimeState(now);
+        setSyncState('synced');
+        showSyncToast(`Bill for ${billToSave.unit} auto-synced to cloud!`, 'synced');
+      } catch (err) {
+        console.warn('Cloud save deferred to local cache:', err);
+        setSyncState('offline');
+        showSyncToast('Saved to offline storage (will sync when online)', 'offline');
+      } finally {
+        isSavingRef.current = false;
+      }
+    })();
   };
 
   // Delete bill handler - auto-syncs immediately!
@@ -306,8 +327,10 @@ export default function App() {
         return false;
       }
       // Status filter
-      if (statusFilter === 'UNPAID' && bill.isPaid) return false;
-      if (statusFilter === 'PAID' && !bill.isPaid) return false;
+      const bStatus = getBillPaymentStatus(bill);
+      if (statusFilter === 'UNPAID' && bStatus === 'PAID') return false;
+      if (statusFilter === 'PARTIAL' && bStatus !== 'PARTIAL') return false;
+      if (statusFilter === 'PAID' && bStatus !== 'PAID') return false;
       // Search query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -322,19 +345,21 @@ export default function App() {
     });
   }, [bills, selectedUnitFilter, statusFilter, searchQuery, unitInfoMap]);
 
-  // Overall Statistics
+  // Overall Statistics (Accurately handles Partial Payments & Remaining Balances)
   const stats = useMemo(() => {
     const totalBills = bills.length;
-    const unpaidBills = bills.filter((b) => !b.isPaid);
-    const paidBills = bills.filter((b) => b.isPaid);
+    const unpaidBills = bills.filter((b) => getBillPaymentStatus(b) !== 'PAID');
+    const partialBills = bills.filter((b) => getBillPaymentStatus(b) === 'PARTIAL');
+    const paidBills = bills.filter((b) => getBillPaymentStatus(b) === 'PAID');
 
-    const totalUnpaidAmount = unpaidBills.reduce((acc, b) => acc + b.totalAmountDue, 0);
-    const totalPaidAmount = paidBills.reduce((acc, b) => acc + b.totalAmountDue, 0);
+    const totalUnpaidAmount = bills.reduce((acc, b) => acc + getRemainingBalance(b), 0);
+    const totalPaidAmount = bills.reduce((acc, b) => acc + getAmountPaid(b), 0);
     const totalKwh = bills.reduce((acc, b) => acc + (b.consumptionKwh || 0), 0);
 
     return {
       totalBills,
       unpaidCount: unpaidBills.length,
+      partialCount: partialBills.length,
       paidCount: paidBills.length,
       totalUnpaidAmount,
       totalPaidAmount,
@@ -353,12 +378,13 @@ export default function App() {
     });
 
     bills.forEach((b) => {
-      if (!b.isPaid) {
+      const rem = getRemainingBalance(b);
+      if (rem > 0) {
         if (!map[b.unit]) {
           map[b.unit] = { unpaidCount: 0, unpaidSum: 0 };
         }
         map[b.unit].unpaidCount += 1;
-        map[b.unit].unpaidSum += b.totalAmountDue;
+        map[b.unit].unpaidSum += rem;
       }
     });
 
@@ -524,7 +550,8 @@ export default function App() {
               <CurrencyText amount={stats.totalPaidAmount} />
             </p>
             <p className="text-[11px] text-stone-500 mt-1">
-              {stats.paidCount} paid {stats.paidCount === 1 ? 'bill' : 'bills'} with proof
+              {stats.paidCount} paid in full
+              {stats.partialCount > 0 ? ` • ${stats.partialCount} partial` : ''}
             </p>
           </div>
 
@@ -655,8 +682,8 @@ export default function App() {
             )}
           </div>
 
-          {/* Status Filter Tabs (ALL / UNPAID / PAID) */}
-          <div className="flex items-center gap-1 bg-stone-200/80 p-1 rounded-xl text-xs font-bold self-start sm:self-auto">
+          {/* Status Filter Tabs (ALL / UNPAID / PARTIAL / PAID) */}
+          <div className="flex flex-wrap items-center gap-1 bg-stone-200/80 p-1 rounded-xl text-xs font-bold self-start sm:self-auto">
             <button
               onClick={() => setStatusFilter('ALL')}
               className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
@@ -671,12 +698,23 @@ export default function App() {
               onClick={() => setStatusFilter('UNPAID')}
               className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
                 statusFilter === 'UNPAID'
+                  ? 'bg-rose-100 text-rose-900 shadow-2xs'
+                  : 'text-stone-600 hover:text-rose-900'
+              }`}
+            >
+              <Clock className="w-3 h-3 text-rose-600" />
+              Unpaid ({stats.unpaidCount})
+            </button>
+            <button
+              onClick={() => setStatusFilter('PARTIAL')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                statusFilter === 'PARTIAL'
                   ? 'bg-amber-100 text-amber-900 shadow-2xs'
                   : 'text-stone-600 hover:text-amber-900'
               }`}
             >
-              <Clock className="w-3 h-3 text-amber-600" />
-              Unpaid ({stats.unpaidCount})
+              <AlertCircle className="w-3 h-3 text-amber-600" />
+              Partial ({stats.partialCount})
             </button>
             <button
               onClick={() => setStatusFilter('PAID')}
@@ -741,6 +779,11 @@ export default function App() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredBills.map((bill) => {
               const tenant = unitInfoMap[bill.unit]?.tenantName;
+              const bStatus = getBillPaymentStatus(bill);
+              const amountPaid = getAmountPaid(bill);
+              const remainingBalance = getRemainingBalance(bill);
+              const hasProof = hasPaymentProofDetails(bill);
+
               return (
                 <div
                   key={bill.id}
@@ -767,19 +810,26 @@ export default function App() {
                       </p>
                     </div>
 
-                    {/* Paid / Unpaid Status Badge */}
+                    {/* Paid / Partial / Unpaid Status Badge */}
                     <div className="flex flex-col items-end">
                       <span
                         className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wide flex items-center gap-1 ${
-                          bill.isPaid
+                          bStatus === 'PAID'
                             ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : bStatus === 'PARTIAL'
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
                             : 'bg-rose-100 text-rose-800 border border-rose-300'
                         }`}
                       >
-                        {bill.isPaid ? (
+                        {bStatus === 'PAID' ? (
                           <>
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>PAID</span>
+                            <span>PAID IN FULL</span>
+                          </>
+                        ) : bStatus === 'PARTIAL' ? (
+                          <>
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            <span>PARTIAL</span>
                           </>
                         ) : (
                           <>
@@ -788,7 +838,7 @@ export default function App() {
                           </>
                         )}
                       </span>
-                      {bill.isPaid && bill.paymentProof?.paymentMethod && (
+                      {bStatus !== 'UNPAID' && bill.paymentProof?.paymentMethod && (
                         <span className="text-[10px] text-stone-500 font-medium mt-1">
                           via {bill.paymentProof.paymentMethod}
                         </span>
@@ -845,32 +895,110 @@ export default function App() {
                       </span>
                     </div>
 
-                    {/* Attached Payment Proof Preview Thumbnail if available */}
-                    {bill.paymentProof?.dataUrl && (
+                    {/* Partial Payment / Paid Amount Summary Box */}
+                    {(bStatus === 'PARTIAL' || amountPaid > 0) && (
                       <div
-                        onClick={() =>
-                          setLightboxData({
-                            url: bill.paymentProof!.dataUrl!,
-                            title: `${bill.unit} - ${bill.billingPeriod} Payment Receipt`,
-                          })
-                        }
-                        className="flex items-center gap-2 p-2 bg-emerald-50/70 border border-emerald-200 rounded-lg cursor-pointer hover:bg-emerald-100/60 transition-colors"
+                        className={`p-2.5 rounded-xl border flex flex-col gap-1 ${
+                          bStatus === 'PARTIAL'
+                            ? 'bg-amber-50/90 border-amber-200'
+                            : 'bg-emerald-50/70 border-emerald-200'
+                        }`}
                       >
-                        <img
-                          src={bill.paymentProof.dataUrl}
-                          alt="Proof thumb"
-                          className="w-9 h-9 object-cover rounded border border-emerald-200 shadow-2xs"
-                        />
-                        <div className="flex-1 truncate">
-                          <p className="text-[11px] font-bold text-emerald-900 truncate">
-                            Receipt Proof Attached
-                          </p>
-                          <p className="text-[9px] text-emerald-700">
-                            {bill.paymentProof.datePaid} • {bill.paymentProof.paymentMethod}
-                            {bill.paymentProof.referenceNo ? ` • Ref: ${bill.paymentProof.referenceNo}` : ''}
-                          </p>
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="font-bold text-stone-700">Amount Paid:</span>
+                          <span className="font-extrabold text-emerald-700">
+                            <CurrencyText amount={amountPaid} />
+                          </span>
                         </div>
-                        <Eye className="w-3.5 h-3.5 text-emerald-700" />
+                        {bStatus === 'PARTIAL' && (
+                          <div className="flex justify-between items-center text-[11px] pt-1 border-t border-amber-200/80">
+                            <span className="font-bold text-rose-800 uppercase">
+                              Remaining Balance:
+                            </span>
+                            <span className="font-extrabold text-rose-700 text-xs">
+                              <CurrencyText amount={remainingBalance} />
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Attached Proof of Payment Preview & Details */}
+                    {hasProof && (
+                      <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-xl flex flex-col gap-2">
+                        {bill.paymentProof?.dataUrl ? (
+                          <div
+                            onClick={() =>
+                              setLightboxData({
+                                url: bill.paymentProof!.dataUrl!,
+                                title: `${bill.unit} - ${bill.billingPeriod} Payment Receipt`,
+                              })
+                            }
+                            className="flex items-center gap-2.5 cursor-pointer group"
+                          >
+                            <img
+                              src={bill.paymentProof.dataUrl}
+                              alt="Proof of payment receipt"
+                              className="w-12 h-12 object-cover rounded-lg border border-emerald-300 shadow-2xs shrink-0 group-hover:scale-105 transition-transform"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] font-bold text-emerald-900 truncate flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>Proof of Payment Attached</span>
+                              </p>
+                              <p className="text-[10px] text-stone-600 truncate">
+                                {bill.paymentProof.datePaid || 'Recorded'} •{' '}
+                                {bill.paymentProof.paymentMethod || 'Payment'}
+                                {bill.paymentProof.referenceNo
+                                  ? ` • Ref: ${bill.paymentProof.referenceNo}`
+                                  : ''}
+                              </p>
+                              {bill.paymentProof.notes && (
+                                <p className="text-[10px] text-stone-500 italic truncate">
+                                  "{bill.paymentProof.notes}"
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLightboxData({
+                                  url: bill.paymentProof!.dataUrl!,
+                                  title: `${bill.unit} - ${bill.billingPeriod} Payment Receipt`,
+                                });
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg bg-[#2C332B] text-white text-[10px] font-bold flex items-center gap-1 hover:bg-[#1E231D] shrink-0 cursor-pointer"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>View Proof</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-semibold text-stone-700 truncate">
+                                {bill.paymentProof?.datePaid || 'Recorded'} •{' '}
+                                {bill.paymentProof?.paymentMethod || 'Payment'}
+                                {bill.paymentProof?.referenceNo
+                                  ? ` • Ref: ${bill.paymentProof.referenceNo}`
+                                  : ''}
+                              </p>
+                              {bill.paymentProof?.notes && (
+                                <p className="text-[10px] text-stone-500 italic truncate">
+                                  "{bill.paymentProof.notes}"
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setActivePaymentModalBill(bill)}
+                              className="px-2 py-1 rounded-md bg-stone-200 hover:bg-stone-300 text-stone-800 text-[10px] font-bold shrink-0 cursor-pointer"
+                            >
+                              + Receipt Photo
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -886,17 +1014,25 @@ export default function App() {
                       <span>View Invoice</span>
                     </button>
 
-                    {/* Mark as Paid / Payment Proof */}
+                    {/* Record Payment / Partial / Payment Proof */}
                     <button
                       onClick={() => setActivePaymentModalBill(bill)}
                       className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${
-                        bill.isPaid
+                        bStatus === 'PAID'
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                          : bStatus === 'PARTIAL'
+                          ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
                           : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
                       }`}
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>{bill.isPaid ? 'Payment Proof' : 'Mark as Paid'}</span>
+                      <span>
+                        {bStatus === 'PAID'
+                          ? 'Payment / Proof'
+                          : bStatus === 'PARTIAL'
+                          ? 'Update Payment'
+                          : 'Record Payment'}
+                      </span>
                     </button>
 
                     <div className="flex items-center gap-1">
@@ -981,6 +1117,7 @@ export default function App() {
                   setActivePaymentModalBill(activeInvoiceModalBill);
                   setActiveInvoiceModalBill(null);
                 }}
+                onViewReceiptFull={(url, title) => setLightboxData({ url, title })}
               />
             </div>
 
