@@ -38,6 +38,8 @@ import {
   getRemainingBalance,
   getBillPaymentStatus,
   hasPaymentProofDetails,
+  getAvailableMonths,
+  getBillMonthKey,
 } from './utils/billing';
 import { CurrencyText } from './components/CurrencyText';
 import {
@@ -61,6 +63,7 @@ import { ReceiptLightbox } from './components/ReceiptLightbox';
 import { CloudSyncModal } from './components/CloudSyncModal';
 import { UnitManagerModal } from './components/UnitManagerModal';
 import { PasscodeLockModal } from './components/PasscodeLockModal';
+import { MonthlyReportsView } from './components/MonthlyReportsView';
 
 export default function App() {
   // State for Bills & Unit Info (Starts with ZERO bills, only 5 initialized unit containers)
@@ -68,6 +71,13 @@ export default function App() {
   const [unitInfoMap, setUnitInfoMap] = useState<Record<ApartmentUnit, UnitInfo>>(() =>
     getCachedUnitInfo()
   );
+
+  // Workspace view state ('statements' | 'reports')
+  const [activeView, setActiveView] = useState<'statements' | 'reports'>('statements');
+  const [selectedReportMonth, setSelectedReportMonth] = useState<string>(() => {
+    const initialBills = getCachedBills();
+    return getAvailableMonths(initialBills)[0];
+  });
 
   // Filter & Search states
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<ApartmentUnit | 'ALL'>('ALL');
@@ -216,6 +226,7 @@ export default function App() {
 
     setBills(updatedBills);
     setCachedBills(updatedBills);
+    setSelectedReportMonth(getBillMonthKey(billToSave));
 
     // If active invoice modal is open for this bill, update it
     if (activeInvoiceModalBill?.id === billToSave.id) {
@@ -524,8 +535,64 @@ export default function App() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-5 flex flex-col gap-5">
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Workspace View Switcher Toolbar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2.5 sm:px-4 sm:py-3 rounded-2xl border border-stone-200 shadow-2xs">
+          <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-xl self-start">
+            <button
+              type="button"
+              onClick={() => setActiveView('statements')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                activeView === 'statements'
+                  ? 'bg-[#2C332B] text-white shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Billing Statements ({bills.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (bills.length > 0 && !bills.some((b) => getBillMonthKey(b) === selectedReportMonth) && selectedReportMonth !== 'ALL') {
+                  setSelectedReportMonth(getAvailableMonths(bills)[0]);
+                }
+                setActiveView('reports');
+              }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                activeView === 'reports'
+                  ? 'bg-[#2C332B] text-white shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>Monthly Reports</span>
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between sm:justify-end gap-3 text-xs text-stone-500">
+            <span className="hidden md:inline">
+              {activeView === 'statements'
+                ? 'Manage tenant statements, submeter readings, and payment proofs'
+                : 'Track monthly electricity consumption and payment collection rate trends'}
+            </span>
+          </div>
+        </div>
+
+        {activeView === 'reports' ? (
+          <MonthlyReportsView
+            bills={bills}
+            unitInfoMap={unitInfoMap}
+            selectedMonth={selectedReportMonth}
+            onSelectMonth={setSelectedReportMonth}
+            onOpenNewBill={(unit) => openNewBillModal(unit)}
+            onViewInvoice={(bill) => setActiveInvoiceModalBill(bill)}
+            onRecordPayment={(bill) => setActivePaymentModalBill(bill)}
+            onViewProof={(url, title) => setLightboxData({ url, title })}
+          />
+        ) : (
+          <>
+            {/* Statistics Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {/* Unpaid Card */}
           <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-stone-200 shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between text-stone-500 mb-1">
@@ -1059,6 +1126,8 @@ export default function App() {
               );
             })}
           </div>
+        )}
+          </>
         )}
       </main>
 

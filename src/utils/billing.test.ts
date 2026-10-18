@@ -12,6 +12,12 @@ import {
   getRemainingBalance,
   getBillPaymentStatus,
   hasPaymentProofDetails,
+  getBillMonthKey,
+  formatMonthLabel,
+  getAvailableMonths,
+  computeMonthlyTrendSeries,
+  computeMonthlyReport,
+  INITIAL_UNIT_INFO,
 } from './billing.ts';
 import type { Bill } from './billing.ts';
 
@@ -143,3 +149,98 @@ test('partial payment helpers accurately compute paid, remaining, and PARTIAL st
   assert.equal(getBillPaymentStatus(unpaidBill), 'UNPAID');
   assert.equal(hasPaymentProofDetails(unpaidBill), false);
 });
+
+test('monthly report and trend helpers aggregate consumption, collection rates, and MoM changes accurately', () => {
+  const sampleBills: Bill[] = [
+    {
+      id: 'sep-s1',
+      unit: 'UNIT S1',
+      billingPeriod: 'September 2026',
+      billingDate: '2026-09-15',
+      lastReading: 100,
+      currentReading: 140,
+      consumptionKwh: 40,
+      ratePerKwh: 15,
+      electricityTotal: 600,
+      rentItems: [{ id: '1', description: 'Monthly Rent', amount: 5000 }],
+      totalAmountDue: 5600,
+      isPaid: true,
+      paymentStatus: 'PAID',
+      paymentProof: { amountPaid: 5600, paymentMethod: 'GCash', datePaid: '2026-09-18' },
+      createdAt: '2026-09-15T00:00:00.000Z',
+      updatedAt: '2026-09-18T00:00:00.000Z',
+    },
+    {
+      id: 'oct-s1',
+      unit: 'UNIT S1',
+      billingPeriod: 'October 2026',
+      billingDate: '2026-10-15',
+      lastReading: 140,
+      currentReading: 200,
+      consumptionKwh: 60,
+      ratePerKwh: 15,
+      electricityTotal: 900,
+      rentItems: [{ id: '1', description: 'Monthly Rent', amount: 5000 }],
+      totalAmountDue: 5900,
+      isPaid: true,
+      paymentStatus: 'PAID',
+      paymentProof: { amountPaid: 5900, paymentMethod: 'GCash', datePaid: '2026-10-16' },
+      createdAt: '2026-10-15T00:00:00.000Z',
+      updatedAt: '2026-10-16T00:00:00.000Z',
+    },
+    {
+      id: 'oct-a1',
+      unit: 'UNIT A1',
+      billingPeriod: 'October 2026',
+      billingDate: '2026-10-16',
+      lastReading: 50,
+      currentReading: 70,
+      consumptionKwh: 20,
+      ratePerKwh: 15,
+      electricityTotal: 300,
+      rentItems: [{ id: '1', description: 'Monthly Rent', amount: 4500 }],
+      totalAmountDue: 4800,
+      isPaid: false,
+      paymentStatus: 'PARTIAL',
+      paymentProof: { amountPaid: 2400, paymentMethod: 'Cash', datePaid: '2026-10-17' },
+      createdAt: '2026-10-16T00:00:00.000Z',
+      updatedAt: '2026-10-17T00:00:00.000Z',
+    },
+  ];
+
+  assert.equal(getBillMonthKey(sampleBills[0]), '2026-09');
+  assert.equal(formatMonthLabel('2026-10'), 'October 2026');
+
+  const months = getAvailableMonths(sampleBills, '2026-10');
+  assert.deepEqual(months, ['2026-10', '2026-09']);
+
+  const trends = computeMonthlyTrendSeries(sampleBills);
+  assert.equal(trends.length, 2);
+  assert.equal(trends[0].monthKey, '2026-09');
+  assert.equal(trends[0].totalConsumptionKwh, 40);
+  assert.equal(trends[0].collectionRate, 100);
+  assert.equal(trends[1].monthKey, '2026-10');
+  assert.equal(trends[1].totalConsumptionKwh, 80);
+  assert.equal(trends[1].totalBilled, 10700);
+  assert.equal(trends[1].totalCollected, 8300);
+
+  const octReport = computeMonthlyReport(sampleBills, '2026-10', INITIAL_UNIT_INFO);
+  assert.equal(octReport.billCount, 2);
+  assert.equal(octReport.unitsBilledCount, 2);
+  assert.equal(octReport.totalConsumptionKwh, 80);
+  assert.equal(octReport.avgConsumptionPerBilledUnitKwh, 40);
+  assert.equal(octReport.totalElectricityBilled, 1200);
+  assert.equal(octReport.totalRentAndOtherBilled, 9500);
+  assert.equal(octReport.totalBilled, 10700);
+  assert.equal(octReport.totalCollected, 8300);
+  assert.equal(octReport.totalRemaining, 2400);
+  assert.equal(octReport.collectionRate, 77.6);
+  assert.equal(octReport.paidCount, 1);
+  assert.equal(octReport.partialCount, 1);
+  assert.equal(octReport.unpaidCount, 0);
+  assert.equal(octReport.prevMonthKey, '2026-09');
+  assert.equal(octReport.consumptionChangePct, 100); // 40 kWh -> 80 kWh = +100%
+  assert.equal(octReport.collectionRateDeltaPts, -22.4); // 100% -> 77.6% = -22.4 pts
+  assert.deepEqual(octReport.highestConsumingUnit, { unit: 'UNIT S1', kwh: 60 });
+});
+
