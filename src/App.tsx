@@ -21,6 +21,7 @@ import {
   Shield,
   HelpCircle,
   TrendingUp,
+  Smartphone,
   X,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -65,6 +66,7 @@ import { CloudSyncModal } from './components/CloudSyncModal';
 import { UnitManagerModal } from './components/UnitManagerModal';
 import { PasscodeLockModal } from './components/PasscodeLockModal';
 import { MonthlyReportsView } from './components/MonthlyReportsView';
+import { MomSimpleStatusView } from './components/MomSimpleStatusView';
 
 export default function App() {
   // State for Bills & Unit Info (Starts with ZERO bills, only 5 initialized unit containers)
@@ -73,8 +75,33 @@ export default function App() {
     getCachedUnitInfo()
   );
 
-  // Workspace view state ('statements' | 'reports')
-  const [activeView, setActiveView] = useState<'statements' | 'reports'>('statements');
+  // Check if opened in dedicated Mom Mode (?view=mom or saved on Mom's phone)
+  const [isDedicatedMomMode, setIsDedicatedMomMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get('view')?.toLowerCase();
+    if (v === 'mom' || v === 'simple') {
+      localStorage.setItem('calibara_dedicated_mom_mode', 'true');
+      return true;
+    }
+    if (v === 'admin' || v === 'landlord') {
+      localStorage.removeItem('calibara_dedicated_mom_mode');
+      return false;
+    }
+    return localStorage.getItem('calibara_dedicated_mom_mode') === 'true';
+  });
+
+  // Workspace view state ('statements' | 'reports' | 'simple')
+  const [activeView, setActiveView] = useState<'statements' | 'reports' | 'simple'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const v = params.get('view')?.toLowerCase();
+      if (v === 'mom' || v === 'simple' || localStorage.getItem('calibara_dedicated_mom_mode') === 'true') {
+        return 'simple';
+      }
+    }
+    return 'statements';
+  });
   const [selectedReportMonth, setSelectedReportMonth] = useState<string>(() => {
     const initialBills = getCachedBills();
     return getAvailableMonths(initialBills)[0];
@@ -436,12 +463,12 @@ export default function App() {
       <header className="sticky top-0 z-40 bg-[#2C332B] text-white shadow-md border-b border-[#3D453C]">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3.5 flex items-center justify-between gap-2">
           {/* Brand */}
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-stone-800/90 border border-stone-600 flex items-center justify-center text-amber-200 shadow-xs shrink-0">
               <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="font-serif-invoice text-base sm:text-xl font-bold tracking-[0.14em] uppercase text-white leading-none truncate">
+              <h1 className="font-serif-invoice text-sm sm:text-xl font-bold tracking-wider sm:tracking-[0.14em] uppercase text-white leading-none truncate">
                 CALIBARA APARTMENT
               </h1>
               <p className="text-[10px] text-stone-300 tracking-wider uppercase mt-0.5 font-medium truncate">
@@ -452,121 +479,178 @@ export default function App() {
 
           {/* Cloud Sync Status & Actions */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {/* Live Cloud Status Button */}
-            <button
-              onClick={() => setIsCloudSyncModalOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 transition-colors shadow-2xs cursor-pointer"
-              title="Cloud Sync Settings"
-            >
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  syncState === 'synced'
-                    ? 'bg-emerald-400'
-                    : syncState === 'syncing'
-                    ? 'bg-amber-400 animate-spin'
-                    : 'bg-stone-400'
-                }`}
-              />
-              <span className="hidden md:inline text-[11px] text-stone-200">
-                {syncState === 'synced' && 'Synced'}
-                {syncState === 'syncing' && 'Syncing...'}
-                {syncState === 'offline' && 'Offline'}
-                {syncState === 'error' && 'Sync Error'}
-              </span>
-              <Cloud className="w-3.5 h-3.5 text-stone-300" />
-            </button>
-
-            {/* Quick Sync Now Refresh button */}
-            <button
-              onClick={handleCloudSync}
-              disabled={syncState === 'syncing'}
-              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
-              title="Sync with Cloud"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncState === 'syncing' ? 'animate-spin' : ''}`} />
-              <span className="hidden lg:inline">Sync</span>
-            </button>
-
-            {/* Unit Info modal button */}
-            <button
-              onClick={() => setIsUnitManagerModalOpen(true)}
-              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-200 transition-colors cursor-pointer flex items-center gap-1"
-              title="Manage Apartment Units"
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Units ({configuredUnits.length})</span>
-            </button>
-
-            {/* Security Lock Toggle / Settings */}
-            {isPinEnabled ? (
-              <button
-                onClick={() => setIsLocked(true)}
-                className="p-1.5 sm:px-2 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-amber-200 transition-colors cursor-pointer flex items-center gap-1"
-                title="Lock Application Now"
-              >
-                <Lock className="w-3.5 h-3.5" />
-              </button>
+            {isDedicatedMomMode ? (
+              <>
+                <button
+                  onClick={() => handleCloudSync(false)}
+                  disabled={syncState === 'syncing'}
+                  className="p-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs font-bold bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-100 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  title="Refresh Status"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${syncState === 'syncing' ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">{syncState === 'syncing' ? 'Updating...' : 'Refresh'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('calibara_dedicated_mom_mode');
+                    setIsDedicatedMomMode(false);
+                    setActiveView('statements');
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('view');
+                    window.history.replaceState({}, '', url.toString());
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-stone-800/60 hover:bg-stone-700/80 border border-stone-700 text-stone-300 transition-colors cursor-pointer"
+                  title="Switch to full Landlord Admin View"
+                >
+                  Admin View
+                </button>
+              </>
             ) : (
-              <button
-                onClick={() => setIsPinSettingsOpen(true)}
-                className="p-1.5 sm:px-2 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-300 transition-colors cursor-pointer flex items-center gap-1"
-                title="Passcode Settings"
-              >
-                <Shield className="w-3.5 h-3.5" />
-              </button>
-            )}
+              <>
+                {/* Live Cloud Status Button */}
+                <button
+                  onClick={() => setIsCloudSyncModalOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 transition-colors shadow-2xs cursor-pointer"
+                  title="Cloud Sync Settings"
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      syncState === 'synced'
+                        ? 'bg-emerald-400'
+                        : syncState === 'syncing'
+                        ? 'bg-amber-400 animate-spin'
+                        : 'bg-stone-400'
+                    }`}
+                  />
+                  <span className="hidden md:inline text-[11px] text-stone-200">
+                    {syncState === 'synced' && 'Synced'}
+                    {syncState === 'syncing' && 'Syncing...'}
+                    {syncState === 'offline' && 'Offline'}
+                    {syncState === 'error' && 'Sync Error'}
+                  </span>
+                  <Cloud className="w-3.5 h-3.5 text-stone-300" />
+                </button>
 
-            {/* Create New Bill CTA Button */}
-            <button
-              onClick={() => openNewBillModal()}
-              className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-400 text-stone-950 hover:bg-amber-300 transition-all shadow-sm active:scale-95 cursor-pointer ml-0.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">New Bill</span>
-              <span className="sm:hidden">Bill</span>
-            </button>
+                {/* Quick Sync Now Refresh button */}
+                <button
+                  onClick={() => handleCloudSync(false)}
+                  disabled={syncState === 'syncing'}
+                  className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                  title="Sync with Cloud"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${syncState === 'syncing' ? 'animate-spin' : ''}`} />
+                  <span className="hidden lg:inline">Sync</span>
+                </button>
+
+                {/* Unit Info modal button */}
+                <button
+                  onClick={() => setIsUnitManagerModalOpen(true)}
+                  className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-200 transition-colors cursor-pointer flex items-center gap-1"
+                  title="Manage Apartment Units"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span className="hidden lg:inline">Units ({configuredUnits.length})</span>
+                </button>
+
+                {/* Security Lock Toggle / Settings */}
+                {isPinEnabled ? (
+                  <button
+                    onClick={() => setIsLocked(true)}
+                    className="p-1.5 sm:px-2 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-amber-200 transition-colors cursor-pointer flex items-center gap-1"
+                    title="Lock Application Now"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setIsPinSettingsOpen(true)}
+                    className="p-1.5 sm:px-2 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-300 transition-colors cursor-pointer flex items-center gap-1"
+                    title="Passcode Settings"
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {/* Create New Bill CTA Button */}
+                <button
+                  onClick={() => openNewBillModal()}
+                  className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-400 text-stone-950 hover:bg-amber-300 transition-all shadow-sm active:scale-95 cursor-pointer ml-0.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">New Bill</span>
+                  <span className="sm:hidden">Bill</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-5 flex flex-col gap-5">
-        {/* Workspace View Switcher Toolbar */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-stone-200 shadow-2xs">
-            <button
-              type="button"
-              onClick={() => setActiveView('statements')}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                activeView === 'statements'
-                  ? 'bg-[#2C332B] text-white shadow-2xs'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Billing Statements ({bills.length})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (bills.length > 0 && !bills.some((b) => getBillMonthKey(b) === selectedReportMonth) && selectedReportMonth !== 'ALL') {
-                  setSelectedReportMonth(getAvailableMonths(bills)[0]);
-                }
-                setActiveView('reports');
-              }}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                activeView === 'reports'
-                  ? 'bg-[#2C332B] text-white shadow-2xs'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-            >
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>Monthly Reports</span>
-            </button>
+        {/* Workspace View Switcher Toolbar (Hidden in Dedicated Mom Mode so Mom has zero extra buttons) */}
+        {!isDedicatedMomMode && (
+          <div className="flex items-center justify-between gap-3 overflow-x-auto">
+            <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-stone-200 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setActiveView('statements')}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  activeView === 'statements'
+                    ? 'bg-[#2C332B] text-white shadow-2xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Billing Statements ({bills.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (bills.length > 0 && !bills.some((b) => getBillMonthKey(b) === selectedReportMonth) && selectedReportMonth !== 'ALL') {
+                    setSelectedReportMonth(getAvailableMonths(bills)[0]);
+                  }
+                  setActiveView('reports');
+                }}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  activeView === 'reports'
+                    ? 'bg-[#2C332B] text-white shadow-2xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>Monthly Reports</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveView('simple')}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  activeView === 'simple'
+                    ? 'bg-[#2C332B] text-white shadow-2xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>Simple View (Mom)</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
-        {activeView === 'reports' ? (
+        {isDedicatedMomMode || activeView === 'simple' ? (
+          <MomSimpleStatusView
+            bills={bills}
+            unitInfoMap={unitInfoMap}
+            onViewInvoice={(bill) => setActiveInvoiceModalBill(bill)}
+            onViewProof={(url, title) => setLightboxData({ url, title })}
+            isDedicatedMomMode={isDedicatedMomMode}
+            onEnableDedicatedMomMode={() => {
+              localStorage.setItem('calibara_dedicated_mom_mode', 'true');
+              setIsDedicatedMomMode(true);
+              setActiveView('simple');
+            }}
+          />
+        ) : activeView === 'reports' ? (
           <MonthlyReportsView
             bills={bills}
             unitInfoMap={unitInfoMap}
@@ -1155,10 +1239,14 @@ export default function App() {
                   unitInfoMap[activeInvoiceModalBill.unit]?.address ||
                   DEFAULT_PROPERTY_ADDRESS
                 }
-                onMarkAsPaid={() => {
-                  setActivePaymentModalBill(activeInvoiceModalBill);
-                  setActiveInvoiceModalBill(null);
-                }}
+                onMarkAsPaid={
+                  isDedicatedMomMode || activeView === 'simple'
+                    ? undefined
+                    : () => {
+                        setActivePaymentModalBill(activeInvoiceModalBill);
+                        setActiveInvoiceModalBill(null);
+                      }
+                }
                 onViewReceiptFull={(url, title) => setLightboxData({ url, title })}
               />
             </div>

@@ -21,6 +21,7 @@ import {
   getAvailableMonths,
   computeMonthlyTrendSeries,
   computeMonthlyReport,
+  computeSimpleUnitStatuses,
   INITIAL_UNIT_INFO,
 } from './billing.ts';
 import type { Bill } from './billing.ts';
@@ -259,5 +260,19 @@ test('monthly report and trend helpers aggregate consumption, collection rates, 
   assert.equal(octReport.consumptionChangePct, 100); // 40 kWh -> 80 kWh = +100%
   assert.equal(octReport.collectionRateDeltaPts, -22.4); // 100% -> 77.6% = -22.4 pts
   assert.deepEqual(octReport.highestConsumingUnit, { unit: 'UNIT S1', kwh: 60 });
+
+  const simpleOverview = computeSimpleUnitStatuses(sampleBills, INITIAL_UNIT_INFO, 'LATEST');
+  assert.equal(simpleOverview.paidUnitsCount, 1); // UNIT S1 latest bill is PAID
+  assert.equal(simpleOverview.partialUnitsCount, 1); // UNIT A1 latest bill is PARTIAL
+  assert.equal(simpleOverview.unpaidUnitsCount, 0);
+  assert.equal(simpleOverview.noBillUnitsCount, 3); // UNIT B, UNIT C, UNIT S2
+  assert.equal(simpleOverview.totalCollectedAmount, 8300); // 5900 + 2400
+  assert.equal(simpleOverview.totalRemainingToCollect, 2400);
+  // Billed units come first
+  assert.equal(simpleOverview.items[0].unit, 'UNIT A1');
+  assert.equal(simpleOverview.items[0].status, 'PARTIAL');
+  assert.equal(simpleOverview.items[1].unit, 'UNIT S1');
+  assert.equal(simpleOverview.items[1].status, 'PAID');
 });
+
 

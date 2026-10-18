@@ -730,3 +730,134 @@ export function computeMonthlyReport(
   };
 }
 
+export interface SimpleUnitStatusItem {
+  unit: ApartmentUnit;
+  tenantName: string;
+  propertyAddress: string;
+  status: 'PAID' | 'PARTIAL' | 'UNPAID' | 'NO_BILL';
+  latestBill: Bill | null;
+  unpaidCount: number;
+  totalDue: number;
+  amountPaid: number;
+  remainingBalance: number;
+  billingPeriod: string;
+  billingDate: string;
+  datePaid: string;
+  paymentMethod: string;
+  hasReceiptPhoto: boolean;
+}
+
+export interface SimpleStatusOverview {
+  items: SimpleUnitStatusItem[];
+  paidUnitsCount: number;
+  partialUnitsCount: number;
+  unpaidUnitsCount: number;
+  noBillUnitsCount: number;
+  totalRemainingToCollect: number;
+  totalCollectedAmount: number;
+}
+
+/**
+ * Computes a simplified, one-card-per-unit status summary designed for non-technical family viewing.
+ */
+export function computeSimpleUnitStatuses(
+  bills: Bill[],
+  unitInfoMap: Record<ApartmentUnit, UnitInfo> = INITIAL_UNIT_INFO,
+  monthKey: string = 'LATEST'
+): SimpleStatusOverview {
+  const unitSet = new Set<string>(Object.keys(unitInfoMap));
+  bills.forEach((b) => unitSet.add(b.unit));
+  const allUnits = Array.from(unitSet);
+
+  const rawItems: SimpleUnitStatusItem[] = allUnits.map((unit) => {
+    const unitInfo = unitInfoMap[unit];
+    const tenantName = unitInfo?.tenantName || '';
+    const propertyAddress = unitInfo?.address || DEFAULT_PROPERTY_ADDRESS;
+
+    const unitBills = bills
+      .filter((b) => b.unit === unit && (monthKey === 'LATEST' || getBillMonthKey(b) === monthKey))
+      .sort((a, b) => {
+        const dA = formatDisplayDate(a.billingDate || a.createdAt);
+        const dB = formatDisplayDate(b.billingDate || b.createdAt);
+        return dB.localeCompare(dA);
+      });
+
+    if (unitBills.length === 0) {
+      return {
+        unit,
+        tenantName,
+        propertyAddress,
+        status: 'NO_BILL',
+        latestBill: null,
+        unpaidCount: 0,
+        totalDue: 0,
+        amountPaid: 0,
+        remainingBalance: 0,
+        billingPeriod: '',
+        billingDate: '',
+        datePaid: '',
+        paymentMethod: '',
+        hasReceiptPhoto: false,
+      };
+    }
+
+    const unpaidOrPartial = unitBills.filter((b) => getBillPaymentStatus(b) !== 'PAID');
+    const primaryBill = unpaidOrPartial.length > 0 ? unpaidOrPartial[0] : unitBills[0];
+    const status = getBillPaymentStatus(primaryBill);
+    const totalDue = getRoundedTotalDue(primaryBill);
+    const amountPaid = roundUpAmount(getAmountPaid(primaryBill));
+    const remainingBalance = roundUpAmount(getRemainingBalance(primaryBill));
+
+    return {
+      unit,
+      tenantName,
+      propertyAddress: primaryBill.propertyAddress || propertyAddress,
+      status,
+      latestBill: primaryBill,
+      unpaidCount: unpaidOrPartial.length,
+      totalDue,
+      amountPaid,
+      remainingBalance,
+      billingPeriod: primaryBill.billingPeriod || '',
+      billingDate: formatDisplayDate(primaryBill.billingDate || primaryBill.createdAt),
+      datePaid: formatDisplayDate(primaryBill.paymentProof?.datePaid),
+      paymentMethod: primaryBill.paymentProof?.paymentMethod || '',
+      hasReceiptPhoto: Boolean(primaryBill.paymentProof?.dataUrl),
+    };
+  });
+
+  // Show units that have bills first so active units are immediately visible at the top
+  const items = [
+    ...rawItems.filter((item) => item.status !== 'NO_BILL'),
+    ...rawItems.filter((item) => item.status === 'NO_BILL'),
+  ];
+
+  let paidUnitsCount = 0;
+  let partialUnitsCount = 0;
+  let unpaidUnitsCount = 0;
+  let noBillUnitsCount = 0;
+  let totalRemainingToCollect = 0;
+  let totalCollectedAmount = 0;
+
+  items.forEach((item) => {
+    if (item.status === 'PAID') paidUnitsCount += 1;
+    else if (item.status === 'PARTIAL') partialUnitsCount += 1;
+    else if (item.status === 'UNPAID') unpaidUnitsCount += 1;
+    else noBillUnitsCount += 1;
+
+    totalRemainingToCollect += item.remainingBalance;
+    totalCollectedAmount += item.amountPaid;
+  });
+
+  return {
+    items,
+    paidUnitsCount,
+    partialUnitsCount,
+    unpaidUnitsCount,
+    noBillUnitsCount,
+    totalRemainingToCollect,
+    totalCollectedAmount,
+  };
+}
+
+
