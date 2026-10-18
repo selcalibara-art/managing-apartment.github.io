@@ -22,9 +22,6 @@ import {
   HelpCircle,
   TrendingUp,
   X,
-  Smartphone,
-  ShieldCheck,
-  Unlock,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -44,7 +41,6 @@ import {
   getAvailableMonths,
   getBillMonthKey,
   formatDisplayDate,
-  isViewerModeFromUrl,
 } from './utils/billing';
 import { CurrencyText } from './components/CurrencyText';
 import {
@@ -69,8 +65,6 @@ import { CloudSyncModal } from './components/CloudSyncModal';
 import { UnitManagerModal } from './components/UnitManagerModal';
 import { PasscodeLockModal } from './components/PasscodeLockModal';
 import { MonthlyReportsView } from './components/MonthlyReportsView';
-import { MomViewerShareModal } from './components/MomViewerShareModal';
-import { UnitStatusTrackerCard } from './components/UnitStatusTrackerCard';
 
 export default function App() {
   // State for Bills & Unit Info (Starts with ZERO bills, only 5 initialized unit containers)
@@ -88,28 +82,13 @@ export default function App() {
 
   // Filter & Search states
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<ApartmentUnit | 'ALL'>('ALL');
-  const [statusFilter, setStatusFilter] = useState<
-    'ALL' | 'UNPAID' | 'PARTIAL' | 'PAID' | 'PROOFS'
-  >('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'UNPAID' | 'PARTIAL' | 'PAID'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Cloud Sync state
   const [syncState, setSyncState] = useState<SyncState>('syncing');
   const [lastSyncTime, setLastSyncTimeState] = useState<string | null>(() => getLastSyncTime());
   const isSavingRef = useRef<boolean>(false);
-
-  // Mom / Family Read-Only Viewer Mode (auto-enabled via ?view=mom or saved preference)
-  const [isViewerMode, setIsViewerMode] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const fromUrl = isViewerModeFromUrl(window.location.search, window.location.hash);
-    if (fromUrl) {
-      localStorage.setItem('calibara_viewer_mode', 'true');
-      return true;
-    }
-    return localStorage.getItem('calibara_viewer_mode') === 'true';
-  });
-  const [isUnlockingFromViewer, setIsUnlockingFromViewer] = useState<boolean>(false);
-  const [isMomShareModalOpen, setIsMomShareModalOpen] = useState<boolean>(false);
 
   // Security / PIN Lock state
   const [isPinEnabled, setIsPinEnabled] = useState<boolean>(() => {
@@ -119,13 +98,6 @@ export default function App() {
     return localStorage.getItem('calibara_pin_code') || '1234';
   });
   const [isLocked, setIsLocked] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const fromUrl = isViewerModeFromUrl(window.location.search, window.location.hash);
-      const savedViewer = localStorage.getItem('calibara_viewer_mode') === 'true';
-      if (fromUrl || savedViewer) {
-        return false; // Never block Read-Only Viewer Mode behind PIN lock
-      }
-    }
     return localStorage.getItem('calibara_pin_enabled') === 'true';
   });
 
@@ -137,11 +109,7 @@ export default function App() {
   const [activeInvoiceModalBill, setActiveInvoiceModalBill] = useState<Bill | null>(null);
   const [activePaymentModalBill, setActivePaymentModalBill] = useState<Bill | null>(null);
 
-  const [lightboxData, setLightboxData] = useState<{
-    url?: string;
-    title: string;
-    bill?: Bill | null;
-  } | null>(null);
+  const [lightboxData, setLightboxData] = useState<{ url: string; title: string } | null>(null);
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
   const [isUnitManagerModalOpen, setIsUnitManagerModalOpen] = useState(false);
   const [isPinSettingsOpen, setIsPinSettingsOpen] = useState(false);
@@ -149,33 +117,6 @@ export default function App() {
     message: string;
     type: 'syncing' | 'synced' | 'offline';
   } | null>(null);
-
-  const handleEnterViewerMode = () => {
-    setIsViewerMode(true);
-    setIsLocked(false);
-    setIsUnlockingFromViewer(false);
-    setIsBillBuilderOpen(false);
-    setActivePaymentModalBill(null);
-    setIsUnitManagerModalOpen(false);
-    setIsCloudSyncModalOpen(false);
-    localStorage.setItem('calibara_viewer_mode', 'true');
-    showSyncToast('Switched to Mom / Read-Only View (Safe Mode)', 'synced');
-  };
-
-  const handleUnlockAdminFromViewer = () => {
-    setIsViewerMode(false);
-    setIsUnlockingFromViewer(false);
-    setIsLocked(false);
-    localStorage.removeItem('calibara_viewer_mode');
-    if (typeof window !== 'undefined' && window.location.search.includes('view=')) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('view');
-      url.searchParams.delete('mode');
-      url.searchParams.delete('readonly');
-      window.history.replaceState({}, '', url.pathname + url.search);
-    }
-    showSyncToast('Unlocked Landlord Admin Mode', 'synced');
-  };
 
   const showSyncToast = (
     message: string,
@@ -402,14 +343,6 @@ export default function App() {
       if (statusFilter === 'UNPAID' && bStatus === 'PAID') return false;
       if (statusFilter === 'PARTIAL' && bStatus !== 'PARTIAL') return false;
       if (statusFilter === 'PAID' && bStatus !== 'PAID') return false;
-      if (
-        statusFilter === 'PROOFS' &&
-        !hasPaymentProofDetails(bill) &&
-        bStatus !== 'PAID' &&
-        bStatus !== 'PARTIAL'
-      ) {
-        return false;
-      }
       // Search query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -430,9 +363,6 @@ export default function App() {
     const unpaidBills = bills.filter((b) => getBillPaymentStatus(b) !== 'PAID');
     const partialBills = bills.filter((b) => getBillPaymentStatus(b) === 'PARTIAL');
     const paidBills = bills.filter((b) => getBillPaymentStatus(b) === 'PAID');
-    const proofBills = bills.filter(
-      (b) => hasPaymentProofDetails(b) || getBillPaymentStatus(b) !== 'UNPAID'
-    );
 
     const totalUnpaidAmount = bills.reduce((acc, b) => acc + getRemainingBalance(b), 0);
     const totalPaidAmount = bills.reduce((acc, b) => acc + getAmountPaid(b), 0);
@@ -443,7 +373,6 @@ export default function App() {
       unpaidCount: unpaidBills.length,
       partialCount: partialBills.length,
       paidCount: paidBills.length,
-      proofCount: proofBills.length,
       totalUnpaidAmount,
       totalPaidAmount,
       totalKwh,
@@ -494,16 +423,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F4F2EC] text-[#2C332B] flex flex-col font-sans">
-      {/* Optional Landlord Passcode Screen (Also used to unlock Admin Mode from Mom's Read-Only View) */}
+      {/* Optional Landlord Passcode Screen */}
       <PasscodeLockModal
-        isLocked={isLocked || isUnlockingFromViewer}
-        onUnlock={handleUnlockAdminFromViewer}
+        isLocked={isLocked}
+        onUnlock={() => setIsLocked(false)}
         savedPin={savedPin}
         isPinEnabled={isPinEnabled}
         onUpdatePinSettings={handleUpdatePinSettings}
-        isUnlockingFromViewer={isUnlockingFromViewer}
-        onCancelUnlockFromViewer={() => setIsUnlockingFromViewer(false)}
-        onEnterViewerMode={handleEnterViewerMode}
       />
 
       {/* Top Header Bar */}
@@ -526,170 +452,92 @@ export default function App() {
 
           {/* Cloud Sync Status & Actions */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {isViewerMode ? (
-              <>
-                {/* Safe Refresh Latest Records Button for Mom's Cellphone */}
-                <button
-                  type="button"
-                  onClick={() => handleCloudSync(false)}
-                  disabled={syncState === 'syncing'}
-                  className="min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-bold bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-100 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                  title="Refresh Latest Billing & Payment Records"
-                >
-                  <RefreshCw
-                    className={`w-3.5 h-3.5 ${syncState === 'syncing' ? 'animate-spin' : ''}`}
-                  />
-                  <span>{syncState === 'syncing' ? 'Updating...' : 'Refresh'}</span>
-                </button>
+            {/* Live Cloud Status Button */}
+            <button
+              onClick={() => setIsCloudSyncModalOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 transition-colors shadow-2xs cursor-pointer"
+              title="Cloud Sync Settings"
+            >
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  syncState === 'synced'
+                    ? 'bg-emerald-400'
+                    : syncState === 'syncing'
+                    ? 'bg-amber-400 animate-spin'
+                    : 'bg-stone-400'
+                }`}
+              />
+              <span className="hidden md:inline text-[11px] text-stone-200">
+                {syncState === 'synced' && 'Synced'}
+                {syncState === 'syncing' && 'Syncing...'}
+                {syncState === 'offline' && 'Offline'}
+                {syncState === 'error' && 'Sync Error'}
+              </span>
+              <Cloud className="w-3.5 h-3.5 text-stone-300" />
+            </button>
 
-                {/* Admin Unlock Button (Requires PIN) */}
-                <button
-                  type="button"
-                  onClick={() => setIsUnlockingFromViewer(true)}
-                  className="min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-400/15 hover:bg-amber-400/25 border border-amber-300/40 text-amber-200 transition-colors cursor-pointer flex items-center gap-1.5"
-                  title="Enter Landlord PIN to unlock editing"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Admin Unlock</span>
-                </button>
-              </>
+            {/* Quick Sync Now Refresh button */}
+            <button
+              onClick={handleCloudSync}
+              disabled={syncState === 'syncing'}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
+              title="Sync with Cloud"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncState === 'syncing' ? 'animate-spin' : ''}`} />
+              <span className="hidden lg:inline">Sync</span>
+            </button>
+
+            {/* Unit Info modal button */}
+            <button
+              onClick={() => setIsUnitManagerModalOpen(true)}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-200 transition-colors cursor-pointer flex items-center gap-1"
+              title="Manage Apartment Units"
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Units ({configuredUnits.length})</span>
+            </button>
+
+            {/* Security Lock Toggle / Settings */}
+            {isPinEnabled ? (
+              <button
+                onClick={() => setIsLocked(true)}
+                className="p-1.5 sm:px-2 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-amber-200 transition-colors cursor-pointer flex items-center gap-1"
+                title="Lock Application Now"
+              >
+                <Lock className="w-3.5 h-3.5" />
+              </button>
             ) : (
-              <>
-                {/* Live Cloud Status Button */}
-                <button
-                  type="button"
-                  onClick={() => setIsCloudSyncModalOpen(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 transition-colors shadow-2xs cursor-pointer"
-                  title="Cloud Sync Settings"
-                >
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      syncState === 'synced'
-                        ? 'bg-emerald-400'
-                        : syncState === 'syncing'
-                        ? 'bg-amber-400 animate-spin'
-                        : 'bg-stone-400'
-                    }`}
-                  />
-                  <span className="hidden md:inline text-[11px] text-stone-200">
-                    {syncState === 'synced' && 'Synced'}
-                    {syncState === 'syncing' && 'Syncing...'}
-                    {syncState === 'offline' && 'Offline'}
-                    {syncState === 'error' && 'Sync Error'}
-                  </span>
-                  <Cloud className="w-3.5 h-3.5 text-stone-300" />
-                </button>
-
-                {/* Quick Sync Now Refresh button */}
-                <button
-                  type="button"
-                  onClick={() => handleCloudSync(false)}
-                  disabled={syncState === 'syncing'}
-                  className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
-                  title="Sync with Cloud"
-                >
-                  <RefreshCw
-                    className={`w-3.5 h-3.5 ${syncState === 'syncing' ? 'animate-spin' : ''}`}
-                  />
-                  <span className="hidden lg:inline">Sync</span>
-                </button>
-
-                {/* Unit Info modal button */}
-                <button
-                  type="button"
-                  onClick={() => setIsUnitManagerModalOpen(true)}
-                  className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-200 transition-colors cursor-pointer flex items-center gap-1"
-                  title="Manage Apartment Units"
-                >
-                  <Building2 className="w-3.5 h-3.5" />
-                  <span className="hidden lg:inline">Units ({configuredUnits.length})</span>
-                </button>
-
-                {/* Security Lock Toggle / Settings */}
-                {isPinEnabled ? (
-                  <button
-                    type="button"
-                    onClick={() => setIsLocked(true)}
-                    className="p-1.5 sm:px-2 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-amber-200 transition-colors cursor-pointer flex items-center gap-1"
-                    title="Lock Application Now"
-                  >
-                    <Lock className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setIsPinSettingsOpen(true)}
-                    className="p-1.5 sm:px-2 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-300 transition-colors cursor-pointer flex items-center gap-1"
-                    title="Passcode Settings"
-                  >
-                    <Shield className="w-3.5 h-3.5" />
-                  </button>
-                )}
-
-                {/* Create New Bill CTA Button */}
-                <button
-                  type="button"
-                  onClick={() => openNewBillModal()}
-                  className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-400 text-stone-950 hover:bg-amber-300 transition-all shadow-sm active:scale-95 cursor-pointer ml-0.5"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">New Bill</span>
-                  <span className="sm:hidden">Bill</span>
-                </button>
-              </>
+              <button
+                onClick={() => setIsPinSettingsOpen(true)}
+                className="p-1.5 sm:px-2 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-300 transition-colors cursor-pointer flex items-center gap-1"
+                title="Passcode Settings"
+              >
+                <Shield className="w-3.5 h-3.5" />
+              </button>
             )}
+
+            {/* Create New Bill CTA Button */}
+            <button
+              onClick={() => openNewBillModal()}
+              className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-400 text-stone-950 hover:bg-amber-300 transition-all shadow-sm active:scale-95 cursor-pointer ml-0.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">New Bill</span>
+              <span className="sm:hidden">Bill</span>
+            </button>
           </div>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-4 py-4 sm:py-5 flex flex-col gap-4 sm:gap-5">
-        {/* Safe Read-Only Banner when Mom / Viewer Mode is active */}
-        {isViewerMode && (
-          <div
-            data-testid="viewer-mode-banner"
-            className="bg-[#2C332B] text-white p-3.5 sm:p-4 rounded-2xl border border-[#3D453C] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-          >
-            <div className="flex items-start sm:items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs sm:text-sm font-bold text-amber-200">
-                    Mom / Family Read-Only View
-                  </span>
-                  <span className="text-[11px] text-stone-300">
-                    · Safe Cellphone Mode (No edits or deletions possible)
-                  </span>
-                </div>
-                <p className="text-[11px] text-stone-300 mt-0.5">
-                  Tap any unit below to check if they are Paid or Unpaid, view their Invoice, or
-                  inspect their Proof of Payment receipt.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsMomShareModalOpen(true)}
-                className="min-h-[42px] px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 border border-stone-600 text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-              >
-                <Smartphone className="w-3.5 h-3.5 text-amber-200" />
-                <span>Share Phone Link</span>
-              </button>
-            </div>
-          </div>
-        )}
-
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-5 flex flex-col gap-5">
         {/* Workspace View Switcher Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-stone-200 shadow-2xs">
             <button
               type="button"
               onClick={() => setActiveView('statements')}
-              className={`min-h-[38px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                 activeView === 'statements'
                   ? 'bg-[#2C332B] text-white shadow-2xs'
                   : 'text-stone-600 hover:text-stone-900'
@@ -701,16 +549,12 @@ export default function App() {
             <button
               type="button"
               onClick={() => {
-                if (
-                  bills.length > 0 &&
-                  !bills.some((b) => getBillMonthKey(b) === selectedReportMonth) &&
-                  selectedReportMonth !== 'ALL'
-                ) {
+                if (bills.length > 0 && !bills.some((b) => getBillMonthKey(b) === selectedReportMonth) && selectedReportMonth !== 'ALL') {
                   setSelectedReportMonth(getAvailableMonths(bills)[0]);
                 }
                 setActiveView('reports');
               }}
-              className={`min-h-[38px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                 activeView === 'reports'
                   ? 'bg-[#2C332B] text-white shadow-2xs'
                   : 'text-stone-600 hover:text-stone-900'
@@ -720,20 +564,6 @@ export default function App() {
               <span>Monthly Reports</span>
             </button>
           </div>
-
-          {/* Mom / Family Read-Only Access Button (Visible in Admin Mode so Landlord can share link or switch modes) */}
-          {!isViewerMode && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsMomShareModalOpen(true)}
-                className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white hover:bg-stone-50 text-[#2C332B] border border-stone-200 shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <Smartphone className="w-4 h-4 text-emerald-700" />
-                <span>Mom / Viewer Access</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {activeView === 'reports' ? (
@@ -744,32 +574,11 @@ export default function App() {
             onSelectMonth={setSelectedReportMonth}
             onOpenNewBill={(unit) => openNewBillModal(unit)}
             onViewInvoice={(bill) => setActiveInvoiceModalBill(bill)}
-            onRecordPayment={(bill) => {
-              if (!isViewerMode) setActivePaymentModalBill(bill);
-            }}
-            onViewProof={(url, title, bill) => setLightboxData({ url, title, bill })}
-            isViewerMode={isViewerMode}
+            onRecordPayment={(bill) => setActivePaymentModalBill(bill)}
+            onViewProof={(url, title) => setLightboxData({ url, title })}
           />
         ) : (
           <>
-            {/* Unit Payment Status Tracker (Always shown in Mom's Read-Only Mode, and shown in Admin Mode when bills exist) */}
-            {(isViewerMode || bills.length > 0) && (
-              <UnitStatusTrackerCard
-                bills={bills}
-                unitInfoMap={unitInfoMap}
-                selectedUnitFilter={selectedUnitFilter}
-                onSelectUnitFilter={setSelectedUnitFilter}
-                onViewInvoice={(bill) => setActiveInvoiceModalBill(bill)}
-                onViewProofBill={(bill) =>
-                  setLightboxData({
-                    url: bill.paymentProof?.dataUrl,
-                    title: `${bill.unit} - ${bill.billingPeriod} Payment Proof`,
-                    bill,
-                  })
-                }
-                isViewerMode={isViewerMode}
-              />
-            )}
             {/* Statistics Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {/* Unpaid Card */}
@@ -886,17 +695,14 @@ export default function App() {
               );
             })}
 
-            {!isViewerMode && (
-              <button
-                type="button"
-                onClick={() => setIsUnitManagerModalOpen(true)}
-                className="px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-600 border border-dashed border-stone-300"
-                title="Add more units or manage property addresses"
-              >
-                <Plus className="w-3.5 h-3.5 text-stone-500" />
-                <span>Add Unit</span>
-              </button>
-            )}
+            <button
+              onClick={() => setIsUnitManagerModalOpen(true)}
+              className="px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-600 border border-dashed border-stone-300"
+              title="Add more units or manage property addresses"
+            >
+              <Plus className="w-3.5 h-3.5 text-stone-500" />
+              <span>Add Unit</span>
+            </button>
           </div>
         </div>
 
@@ -914,7 +720,6 @@ export default function App() {
             />
             {searchQuery && (
               <button
-                type="button"
                 onClick={() => setSearchQuery('')}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-stone-400 hover:text-stone-600"
               >
@@ -923,12 +728,11 @@ export default function App() {
             )}
           </div>
 
-          {/* Status Filter Tabs (ALL / UNPAID / PARTIAL / PAID / PROOFS) */}
+          {/* Status Filter Tabs (ALL / UNPAID / PARTIAL / PAID) */}
           <div className="flex flex-wrap items-center gap-1 bg-stone-200/80 p-1 rounded-xl text-xs font-bold self-start sm:self-auto">
             <button
-              type="button"
               onClick={() => setStatusFilter('ALL')}
-              className={`min-h-[34px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                 statusFilter === 'ALL'
                   ? 'bg-white text-stone-900 shadow-2xs'
                   : 'text-stone-600 hover:text-stone-900'
@@ -937,9 +741,8 @@ export default function App() {
               All ({bills.length})
             </button>
             <button
-              type="button"
               onClick={() => setStatusFilter('UNPAID')}
-              className={`min-h-[34px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
                 statusFilter === 'UNPAID'
                   ? 'bg-rose-100 text-rose-900 shadow-2xs'
                   : 'text-stone-600 hover:text-rose-900'
@@ -949,9 +752,8 @@ export default function App() {
               Unpaid ({stats.unpaidCount})
             </button>
             <button
-              type="button"
               onClick={() => setStatusFilter('PARTIAL')}
-              className={`min-h-[34px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
                 statusFilter === 'PARTIAL'
                   ? 'bg-amber-100 text-amber-900 shadow-2xs'
                   : 'text-stone-600 hover:text-amber-900'
@@ -961,9 +763,8 @@ export default function App() {
               Partial ({stats.partialCount})
             </button>
             <button
-              type="button"
               onClick={() => setStatusFilter('PAID')}
-              className={`min-h-[34px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
                 statusFilter === 'PAID'
                   ? 'bg-emerald-100 text-emerald-900 shadow-2xs'
                   : 'text-stone-600 hover:text-emerald-900'
@@ -972,24 +773,12 @@ export default function App() {
               <CheckCircle2 className="w-3 h-3 text-emerald-600" />
               Paid ({stats.paidCount})
             </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter('PROOFS')}
-              className={`min-h-[34px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
-                statusFilter === 'PROOFS'
-                  ? 'bg-white text-emerald-950 shadow-2xs'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-            >
-              <ImageIcon className="w-3 h-3 text-emerald-700" />
-              Proofs ({stats.proofCount})
-            </button>
           </div>
         </div>
 
         {/* Bills List / Grid */}
         {filteredBills.length === 0 ? (
-          /* Empty State */
+          /* Empty State as requested (Zero initial pre-populated dummy bills) */
           <div className="bg-white rounded-2xl border border-stone-200 p-8 sm:p-10 text-center shadow-2xs flex flex-col items-center">
             <div className="w-14 h-14 rounded-2xl bg-stone-100 text-[#2C332B] flex items-center justify-center mb-3.5 border border-stone-200">
               <Building2 className="w-7 h-7" />
@@ -1001,48 +790,33 @@ export default function App() {
 
             <p className="text-xs text-stone-500 max-w-sm mt-1 mb-5">
               {bills.length === 0
-                ? isViewerMode
-                  ? 'No billing statements have been posted yet. Tap Refresh above to check for updates.'
-                  : 'Create a billing statement for any unit to begin.'
+                ? 'Create a billing statement for any unit to begin.'
                 : 'Adjust your search or filter selection.'}
             </p>
 
-            {!isViewerMode ? (
-              <div className="flex flex-wrap items-center justify-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() =>
-                    openNewBillModal(
-                      selectedUnitFilter !== 'ALL' ? selectedUnitFilter : 'UNIT S1'
-                    )
-                  }
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#2C332B] text-white hover:bg-[#1E231D] transition-colors shadow-2xs cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>
-                    Create Bill ({selectedUnitFilter !== 'ALL' ? selectedUnitFilter : 'UNIT S1'})
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsUnitManagerModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors border border-stone-200 cursor-pointer"
-                >
-                  <Building2 className="w-4 h-4" />
-                  <span>Manage Units</span>
-                </button>
-              </div>
-            ) : (
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
               <button
-                type="button"
-                onClick={() => handleCloudSync(false)}
-                className="min-h-[44px] inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#2C332B] text-white hover:bg-[#1E231D] transition-colors cursor-pointer"
+                onClick={() =>
+                  openNewBillModal(
+                    selectedUnitFilter !== 'ALL' ? selectedUnitFilter : 'UNIT S1'
+                  )
+                }
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#2C332B] text-white hover:bg-[#1E231D] transition-colors shadow-2xs cursor-pointer"
               >
-                <RefreshCw className="w-4 h-4" />
-                <span>Refresh Cloud Records</span>
+                <Plus className="w-4 h-4" />
+                <span>
+                  Create Bill ({selectedUnitFilter !== 'ALL' ? selectedUnitFilter : 'UNIT S1'})
+                </span>
               </button>
-            )}
+
+              <button
+                onClick={() => setIsUnitManagerModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors border border-stone-200 cursor-pointer"
+              >
+                <Building2 className="w-4 h-4" />
+                <span>Manage Units</span>
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1201,7 +975,6 @@ export default function App() {
                               setLightboxData({
                                 url: bill.paymentProof!.dataUrl!,
                                 title: `${bill.unit} - ${bill.billingPeriod} Payment Receipt`,
-                                bill,
                               })
                             }
                             className="flex items-center gap-2.5 cursor-pointer group"
@@ -1225,7 +998,7 @@ export default function App() {
                               </p>
                               {bill.paymentProof.notes && (
                                 <p className="text-[10px] text-stone-500 italic truncate">
-                                  &ldquo;{bill.paymentProof.notes}&rdquo;
+                                  "{bill.paymentProof.notes}"
                                 </p>
                               )}
                             </div>
@@ -1236,7 +1009,6 @@ export default function App() {
                                 setLightboxData({
                                   url: bill.paymentProof!.dataUrl!,
                                   title: `${bill.unit} - ${bill.billingPeriod} Payment Receipt`,
-                                  bill,
                                 });
                               }}
                               className="px-2.5 py-1.5 rounded-lg bg-[#2C332B] text-white text-[10px] font-bold flex items-center gap-1 hover:bg-[#1E231D] shrink-0 cursor-pointer"
@@ -1257,33 +1029,17 @@ export default function App() {
                               </p>
                               {bill.paymentProof?.notes && (
                                 <p className="text-[10px] text-stone-500 italic truncate">
-                                  &ldquo;{bill.paymentProof.notes}&rdquo;
+                                  "{bill.paymentProof.notes}"
                                 </p>
                               )}
                             </div>
-                            {!isViewerMode ? (
-                              <button
-                                type="button"
-                                onClick={() => setActivePaymentModalBill(bill)}
-                                className="px-2 py-1 rounded-md bg-stone-200 hover:bg-stone-300 text-stone-800 text-[10px] font-bold shrink-0 cursor-pointer"
-                              >
-                                + Receipt Photo
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setLightboxData({
-                                    url: undefined,
-                                    title: `${bill.unit} - ${bill.billingPeriod} Payment Proof`,
-                                    bill,
-                                  })
-                                }
-                                className="px-2.5 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 text-[10px] font-bold shrink-0 cursor-pointer"
-                              >
-                                View Record
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => setActivePaymentModalBill(bill)}
+                              className="px-2 py-1 rounded-md bg-stone-200 hover:bg-stone-300 text-stone-800 text-[10px] font-bold shrink-0 cursor-pointer"
+                            >
+                              + Receipt Photo
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1291,97 +1047,57 @@ export default function App() {
                   </div>
 
                   {/* Footer Actions */}
-                  {isViewerMode ? (
-                    <div className="p-3 bg-stone-50 border-t border-stone-200 grid grid-cols-2 gap-2">
+                  <div className="p-3 bg-stone-50 border-t border-stone-200 flex items-center justify-between gap-1">
+                    {/* View Invoice Card (Exact Reference Photo) */}
+                    <button
+                      onClick={() => setActiveInvoiceModalBill(bill)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#2C332B] text-white hover:bg-[#1E231D] transition-colors shadow-2xs cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>View Invoice</span>
+                    </button>
+
+                    {/* Record Payment / Partial / Payment Proof */}
+                    <button
+                      onClick={() => setActivePaymentModalBill(bill)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${
+                        bStatus === 'PAID'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                          : bStatus === 'PARTIAL'
+                          ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                          : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>
+                        {bStatus === 'PAID'
+                          ? 'Payment / Proof'
+                          : bStatus === 'PARTIAL'
+                          ? 'Update Payment'
+                          : 'Record Payment'}
+                      </span>
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {/* Edit Bill */}
                       <button
-                        type="button"
-                        onClick={() => setActiveInvoiceModalBill(bill)}
-                        className="min-h-[42px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#2C332B] text-white hover:bg-[#1E231D] transition-colors shadow-2xs cursor-pointer"
+                        onClick={() => openEditBillModal(bill)}
+                        className="p-1.5 text-stone-500 hover:text-stone-800 hover:bg-stone-200 rounded-lg transition-colors cursor-pointer"
+                        title="Edit Bill Details"
                       >
-                        <FileText className="w-3.5 h-3.5 text-amber-200" />
-                        <span>View Invoice</span>
+                        <Edit className="w-3.5 h-3.5" />
                       </button>
 
-                      {hasProof || bStatus === 'PAID' || bStatus === 'PARTIAL' ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setLightboxData({
-                              url: bill.paymentProof?.dataUrl,
-                              title: `${bill.unit} - ${bill.billingPeriod} Payment Proof`,
-                              bill,
-                            })
-                          }
-                          className="min-h-[42px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-900 border border-emerald-300 hover:bg-emerald-100 transition-colors cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-emerald-700" />
-                          <span>
-                            {bill.paymentProof?.dataUrl ? 'Receipt Photo' : 'Payment Proof'}
-                          </span>
-                        </button>
-                      ) : (
-                        <div className="min-h-[42px] inline-flex items-center justify-center px-3 py-2 rounded-xl text-[11px] font-semibold bg-stone-100 text-stone-400 border border-stone-200">
-                          No Proof Yet
-                        </div>
-                      )}
+                      {/* Delete Bill */}
+                      <button
+                        onClick={() => handleDeleteBill(bill.id, bill.unit)}
+                        className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Delete Bill"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                  ) : (
-                    <div className="p-3 bg-stone-50 border-t border-stone-200 flex items-center justify-between gap-1">
-                      {/* View Invoice Card (Exact Reference Photo) */}
-                      <button
-                        type="button"
-                        onClick={() => setActiveInvoiceModalBill(bill)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#2C332B] text-white hover:bg-[#1E231D] transition-colors shadow-2xs cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>View Invoice</span>
-                      </button>
-
-                      {/* Record Payment / Partial / Payment Proof */}
-                      <button
-                        type="button"
-                        onClick={() => setActivePaymentModalBill(bill)}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${
-                          bStatus === 'PAID'
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-                            : bStatus === 'PARTIAL'
-                            ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
-                            : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                        }`}
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>
-                          {bStatus === 'PAID'
-                            ? 'Payment / Proof'
-                            : bStatus === 'PARTIAL'
-                            ? 'Update Payment'
-                            : 'Record Payment'}
-                        </span>
-                      </button>
-
-                      <div className="flex items-center gap-1">
-                        {/* Edit Bill */}
-                        <button
-                          type="button"
-                          onClick={() => openEditBillModal(bill)}
-                          className="p-1.5 text-stone-500 hover:text-stone-800 hover:bg-stone-200 rounded-lg transition-colors cursor-pointer"
-                          title="Edit Bill Details"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Delete Bill */}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteBill(bill.id, bill.unit)}
-                          className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="Delete Bill"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
               );
             })}
@@ -1398,8 +1114,8 @@ export default function App() {
         </p>
       </footer>
 
-      {/* MODAL 1: Bill Builder (Create / Edit) — Disabled in Viewer Mode */}
-      {!isViewerMode && isBillBuilderOpen && (
+      {/* MODAL 1: Bill Builder (Create / Edit) */}
+      {isBillBuilderOpen && (
         <BillBuilderModal
           isOpen={isBillBuilderOpen}
           onClose={() => setIsBillBuilderOpen(false)}
@@ -1424,7 +1140,6 @@ export default function App() {
                 </h3>
               </div>
               <button
-                type="button"
                 onClick={() => setActiveInvoiceModalBill(null)}
                 className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-700/50 transition-colors cursor-pointer"
               >
@@ -1440,25 +1155,18 @@ export default function App() {
                   unitInfoMap[activeInvoiceModalBill.unit]?.address ||
                   DEFAULT_PROPERTY_ADDRESS
                 }
-                onMarkAsPaid={
-                  isViewerMode
-                    ? undefined
-                    : () => {
-                        setActivePaymentModalBill(activeInvoiceModalBill);
-                        setActiveInvoiceModalBill(null);
-                      }
-                }
-                onViewReceiptFull={(url, title) =>
-                  setLightboxData({ url, title, bill: activeInvoiceModalBill })
-                }
+                onMarkAsPaid={() => {
+                  setActivePaymentModalBill(activeInvoiceModalBill);
+                  setActiveInvoiceModalBill(null);
+                }}
+                onViewReceiptFull={(url, title) => setLightboxData({ url, title })}
               />
             </div>
 
             <div className="p-3 bg-stone-100 border-t border-stone-200 flex justify-end items-center text-xs">
               <button
-                type="button"
                 onClick={() => setActiveInvoiceModalBill(null)}
-                className="min-h-[40px] px-5 py-2 bg-[#2C332B] text-white rounded-xl font-bold hover:bg-[#1E231D] cursor-pointer"
+                className="px-4 py-1.5 bg-[#2C332B] text-white rounded-lg font-bold hover:bg-[#1E231D] cursor-pointer"
               >
                 Close
               </button>
@@ -1467,32 +1175,29 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 3: Mark as Paid & Payment Proof Upload — Disabled in Viewer Mode */}
-      {!isViewerMode && activePaymentModalBill && (
+      {/* MODAL 3: Mark as Paid & Payment Proof Upload */}
+      {activePaymentModalBill && (
         <PaymentModal
           isOpen={Boolean(activePaymentModalBill)}
           onClose={() => setActivePaymentModalBill(null)}
           bill={activePaymentModalBill}
           onSavePayment={handleSavePayment}
-          onViewReceiptFull={(url, title) =>
-            setLightboxData({ url, title, bill: activePaymentModalBill })
-          }
+          onViewReceiptFull={(url, title) => setLightboxData({ url, title })}
         />
       )}
 
-      {/* MODAL 4: Fullscreen Payment Receipt & Proof Lightbox */}
+      {/* MODAL 4: Fullscreen Payment Receipt Lightbox */}
       {lightboxData && (
         <ReceiptLightbox
           isOpen={Boolean(lightboxData)}
           imageUrl={lightboxData.url}
           title={lightboxData.title}
-          bill={lightboxData.bill}
           onClose={() => setLightboxData(null)}
         />
       )}
 
-      {/* MODAL 5: Cloud Sync Settings & Google Apps Script Setup — Disabled in Viewer Mode */}
-      {!isViewerMode && isCloudSyncModalOpen && (
+      {/* MODAL 5: Cloud Sync Settings & Google Apps Script Setup */}
+      {isCloudSyncModalOpen && (
         <CloudSyncModal
           isOpen={isCloudSyncModalOpen}
           onClose={() => setIsCloudSyncModalOpen(false)}
@@ -1512,8 +1217,8 @@ export default function App() {
         />
       )}
 
-      {/* MODAL 6: Unit Manager — Disabled in Viewer Mode */}
-      {!isViewerMode && isUnitManagerModalOpen && (
+      {/* MODAL 6: Unit Manager (Occupants, default rent, notes) */}
+      {isUnitManagerModalOpen && (
         <UnitManagerModal
           isOpen={isUnitManagerModalOpen}
           onClose={() => setIsUnitManagerModalOpen(false)}
@@ -1522,8 +1227,8 @@ export default function App() {
         />
       )}
 
-      {/* MODAL 7: Passcode Settings — Disabled in Viewer Mode */}
-      {!isViewerMode && isPinSettingsOpen && (
+      {/* MODAL 7: Passcode Settings */}
+      {isPinSettingsOpen && (
         <PasscodeLockModal
           isLocked={false}
           onUnlock={() => {}}
@@ -1532,16 +1237,6 @@ export default function App() {
           onUpdatePinSettings={handleUpdatePinSettings}
           isOpenSettingsOnly={true}
           onCloseSettings={() => setIsPinSettingsOpen(false)}
-        />
-      )}
-
-      {/* MODAL 8: Mom / Family Cellphone Read-Only Share & Mode Switcher Modal */}
-      {isMomShareModalOpen && (
-        <MomViewerShareModal
-          isOpen={isMomShareModalOpen}
-          onClose={() => setIsMomShareModalOpen(false)}
-          onEnterViewerMode={handleEnterViewerMode}
-          savedPin={savedPin}
         />
       )}
 

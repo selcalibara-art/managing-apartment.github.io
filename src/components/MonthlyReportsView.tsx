@@ -40,8 +40,7 @@ interface MonthlyReportsViewProps {
   onOpenNewBill: (unit?: ApartmentUnit) => void;
   onViewInvoice: (bill: Bill) => void;
   onRecordPayment: (bill: Bill) => void;
-  onViewProof: (url: string, title: string, bill?: Bill) => void;
-  isViewerMode?: boolean;
+  onViewProof: (url: string, title: string) => void;
 }
 
 export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
@@ -53,7 +52,6 @@ export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
   onViewInvoice,
   onRecordPayment,
   onViewProof,
-  isViewerMode = false,
 }) => {
   const [unitRowFilter, setUnitRowFilter] = useState<'ALL' | 'BILLED' | 'OWING' | 'UNBILLED'>('ALL');
 
@@ -830,38 +828,34 @@ export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
                       <button
                         type="button"
                         onClick={() => onViewInvoice(latestBill)}
-                        className="min-h-[40px] px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold transition-colors cursor-pointer"
+                        className="px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold transition-colors cursor-pointer"
                       >
                         View Invoice
                       </button>
-                      {!isViewerMode && (
-                        <button
-                          type="button"
-                          onClick={() => onRecordPayment(latestBill)}
-                          className="min-h-[40px] px-3 py-1.5 rounded-lg bg-[#2C332B] hover:bg-[#1E231D] text-white font-semibold transition-colors cursor-pointer"
-                        >
-                          {row.status === 'PAID' ? 'Payment Details' : 'Record Payment'}
-                        </button>
-                      )}
-                      {(hasProof || row.status === 'PAID' || row.status === 'PARTIAL') && (
+                      <button
+                        type="button"
+                        onClick={() => onRecordPayment(latestBill)}
+                        className="px-3 py-1.5 rounded-lg bg-[#2C332B] hover:bg-[#1E231D] text-white font-semibold transition-colors cursor-pointer"
+                      >
+                        {row.status === 'PAID' ? 'Payment Details' : 'Record Payment'}
+                      </button>
+                      {hasProof && latestBill.paymentProof?.dataUrl && (
                         <button
                           type="button"
                           onClick={() =>
                             onViewProof(
-                              latestBill.paymentProof?.dataUrl || '',
-                              `${latestBill.unit} - ${latestBill.billingPeriod} Payment Proof`,
-                              latestBill
+                              latestBill.paymentProof!.dataUrl!,
+                              `${latestBill.unit} - ${latestBill.billingPeriod} Payment Receipt`
                             )
                           }
                           aria-label={`View proof for ${row.unit}`}
-                          className="min-h-[40px] px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold flex items-center gap-1 cursor-pointer"
+                          className="p-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 cursor-pointer"
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Proof</span>
+                          <Eye className="w-4 h-4" />
                         </button>
                       )}
                     </>
-                  ) : !isViewerMode ? (
+                  ) : (
                     <button
                       type="button"
                       onClick={() => onOpenNewBill(row.unit)}
@@ -870,7 +864,7 @@ export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
                       <Plus className="w-3.5 h-3.5" />
                       <span>Create Bill for {row.unit}</span>
                     </button>
-                  ) : null}
+                  )}
                 </div>
               </div>
             );
@@ -1019,35 +1013,31 @@ export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
                           >
                             Invoice
                           </button>
-                          {!isViewerMode && (
-                            <button
-                              type="button"
-                              onClick={() => onRecordPayment(latestBill)}
-                              className="px-2.5 py-1 rounded-lg bg-[#2C332B] hover:bg-[#1E231D] text-white font-semibold transition-colors cursor-pointer whitespace-nowrap"
-                            >
-                              {row.status === 'PAID' ? 'Payment' : 'Pay'}
-                            </button>
-                          )}
-                          {(hasProof || row.status === 'PAID' || row.status === 'PARTIAL') && (
+                          <button
+                            type="button"
+                            onClick={() => onRecordPayment(latestBill)}
+                            className="px-2.5 py-1 rounded-lg bg-[#2C332B] hover:bg-[#1E231D] text-white font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                          >
+                            {row.status === 'PAID' ? 'Payment' : 'Pay'}
+                          </button>
+                          {hasProof && latestBill.paymentProof?.dataUrl && (
                             <button
                               type="button"
                               onClick={() =>
                                 onViewProof(
-                                  latestBill.paymentProof?.dataUrl || '',
-                                  `${latestBill.unit} - ${latestBill.billingPeriod} Payment Proof`,
-                                  latestBill
+                                  latestBill.paymentProof!.dataUrl!,
+                                  `${latestBill.unit} - ${latestBill.billingPeriod} Payment Receipt`
                                 )
                               }
                               aria-label={`View proof for ${row.unit}`}
                               title="View Proof of Payment"
-                              className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                              className="p-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer"
                             >
                               <Eye className="w-3.5 h-3.5" />
-                              <span>Proof</span>
                             </button>
                           )}
                         </div>
-                      ) : !isViewerMode ? (
+                      ) : (
                         <button
                           type="button"
                           onClick={() => onOpenNewBill(row.unit)}
@@ -1056,8 +1046,6 @@ export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
                           <Plus className="w-3 h-3" />
                           <span>Create Bill</span>
                         </button>
-                      ) : (
-                        <span className="text-stone-400">—</span>
                       )}
                     </td>
                   </tr>

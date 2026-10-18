@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Unlock, KeyRound, Check, Shield, Eye, X } from 'lucide-react';
+import { Lock, Unlock, KeyRound, Check, Shield } from 'lucide-react';
 
 interface PasscodeLockModalProps {
   isLocked: boolean;
@@ -9,9 +9,6 @@ interface PasscodeLockModalProps {
   onUpdatePinSettings: (enabled: boolean, newPin: string) => void;
   isOpenSettingsOnly?: boolean;
   onCloseSettings?: () => void;
-  isUnlockingFromViewer?: boolean;
-  onCancelUnlockFromViewer?: () => void;
-  onEnterViewerMode?: () => void;
 }
 
 export const PasscodeLockModal: React.FC<PasscodeLockModalProps> = ({
@@ -22,9 +19,6 @@ export const PasscodeLockModal: React.FC<PasscodeLockModalProps> = ({
   onUpdatePinSettings,
   isOpenSettingsOnly = false,
   onCloseSettings,
-  isUnlockingFromViewer = false,
-  onCancelUnlockFromViewer,
-  onEnterViewerMode,
 }) => {
   const [pinInput, setPinInput] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -108,13 +102,12 @@ export const PasscodeLockModal: React.FC<PasscodeLockModalProps> = ({
           <div className="p-5 flex flex-col gap-4 text-stone-800">
             <p className="text-xs text-stone-600">
               Protect your Calibara Apartment billing and submeter records from unauthorized changes
-              if using a shared family phone or desktop. This 4-digit PIN also protects switching
-              from Mom&apos;s Read-Only View into Landlord Edit Mode.
+              if using a shared family phone or desktop.
             </p>
 
             <label className="flex items-center justify-between p-3 bg-stone-50 rounded-xl border border-stone-200 cursor-pointer">
               <span className="text-xs font-bold text-stone-800 uppercase tracking-wide">
-                Require 4-Digit PIN on Startup
+                Require 4-Digit PIN to Access
               </span>
               <input
                 type="checkbox"
@@ -124,32 +117,34 @@ export const PasscodeLockModal: React.FC<PasscodeLockModalProps> = ({
               />
             </label>
 
-            <div className="flex flex-col gap-3 p-3 bg-stone-50 rounded-xl border border-stone-200">
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">
-                  4-Digit Landlord Passcode
-                </label>
-                <input
-                  type="password"
-                  maxLength={4}
-                  value={newPin}
-                  onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                  className="w-full text-center tracking-widest text-lg font-bold p-2 bg-white rounded-lg border border-stone-300"
-                />
+            {enabledToggle && (
+              <div className="flex flex-col gap-3 p-3 bg-stone-50 rounded-xl border border-stone-200">
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    New 4-Digit Passcode
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    value={newPin}
+                    onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+                    className="w-full text-center tracking-widest text-lg font-bold p-2 bg-white rounded-lg border border-stone-300"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    Confirm 4-Digit Passcode
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    value={confirmPin}
+                    onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+                    className="w-full text-center tracking-widest text-lg font-bold p-2 bg-white rounded-lg border border-stone-300"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">
-                  Confirm 4-Digit Passcode
-                </label>
-                <input
-                  type="password"
-                  maxLength={4}
-                  value={confirmPin}
-                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                  className="w-full text-center tracking-widest text-lg font-bold p-2 bg-white rounded-lg border border-stone-300"
-                />
-              </div>
-            </div>
+            )}
 
             {settingsNotice && (
               <p className="text-xs text-center font-semibold text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
@@ -193,10 +188,8 @@ export const PasscodeLockModal: React.FC<PasscodeLockModalProps> = ({
         <h2 className="font-serif-invoice text-2xl font-bold tracking-[0.2em] uppercase text-[#2C332B]">
           CALIBARA APARTMENT
         </h2>
-        <p className="text-xs text-stone-500 font-medium tracking-wider uppercase mt-1 mb-6 text-center">
-          {isUnlockingFromViewer
-            ? 'Enter Landlord PIN to Enable Editing'
-            : 'Landlord Private Portal'}
+        <p className="text-xs text-stone-500 font-medium tracking-wider uppercase mt-1 mb-6">
+          Landlord Private Portal
         </p>
 
         {/* PIN Dots */}
@@ -220,11 +213,10 @@ export const PasscodeLockModal: React.FC<PasscodeLockModalProps> = ({
         )}
 
         {/* 10-key numeric keypad for fast mobile/touch & desktop entry */}
-        <div className="grid grid-cols-3 gap-3 w-full mb-5">
+        <div className="grid grid-cols-3 gap-3 w-full mb-6">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
             <button
               key={num}
-              type="button"
               onClick={() => handleKeypadPress(num)}
               className="h-14 rounded-2xl bg-white border border-stone-200 text-stone-800 text-xl font-bold hover:bg-stone-100 active:scale-95 shadow-2xs transition-all cursor-pointer flex items-center justify-center"
             >
@@ -232,54 +224,24 @@ export const PasscodeLockModal: React.FC<PasscodeLockModalProps> = ({
             </button>
           ))}
           <button
-            type="button"
             onClick={() => setPinInput('')}
             className="h-14 rounded-2xl bg-stone-100 border border-stone-200 text-stone-600 text-xs font-bold hover:bg-stone-200 active:scale-95 transition-all cursor-pointer flex items-center justify-center uppercase tracking-wider"
           >
             Clear
           </button>
           <button
-            type="button"
             onClick={() => handleKeypadPress('0')}
             className="h-14 rounded-2xl bg-white border border-stone-200 text-stone-800 text-xl font-bold hover:bg-stone-100 active:scale-95 shadow-2xs transition-all cursor-pointer flex items-center justify-center"
           >
             0
           </button>
           <button
-            type="button"
             onClick={handleBackspace}
-            aria-label="Backspace"
             className="h-14 rounded-2xl bg-stone-100 border border-stone-200 text-stone-600 text-xs font-bold hover:bg-stone-200 active:scale-95 transition-all cursor-pointer flex items-center justify-center uppercase tracking-wider"
           >
             ⌫
           </button>
         </div>
-
-        {isUnlockingFromViewer && onCancelUnlockFromViewer ? (
-          <button
-            type="button"
-            onClick={() => {
-              setPinInput('');
-              onCancelUnlockFromViewer();
-            }}
-            className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-800 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer mb-3"
-          >
-            <X className="w-4 h-4" />
-            <span>Stay in Safe Read-Only View</span>
-          </button>
-        ) : onEnterViewerMode ? (
-          <button
-            type="button"
-            onClick={() => {
-              setPinInput('');
-              onEnterViewerMode();
-            }}
-            className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-stone-200/80 hover:bg-stone-200 text-[#2C332B] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer mb-3"
-          >
-            <Eye className="w-4 h-4" />
-            <span>Continue in Mom / Read-Only View</span>
-          </button>
-        ) : null}
 
         <p className="text-[11px] text-stone-400 text-center">
           Default Passcode: <span className="font-mono font-bold text-stone-600">{savedPin}</span>
@@ -288,4 +250,3 @@ export const PasscodeLockModal: React.FC<PasscodeLockModalProps> = ({
     </div>
   );
 };
-
