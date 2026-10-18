@@ -235,7 +235,7 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
                 : 'border-transparent text-stone-500'
             }`}
           >
-            1. Bill Details & Readings
+            Bill Details
           </button>
           <button
             onClick={() => setActiveTabMobile('preview')}
@@ -246,7 +246,7 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
             }`}
           >
             <Eye className="w-3.5 h-3.5" />
-            2. Live Invoice Preview
+            Invoice Preview
           </button>
         </div>
 
@@ -263,7 +263,7 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
             <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-2xs">
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
-                  Select Apartment Unit
+                  Unit
                 </label>
                 {onOpenUnitManager && (
                   <button
@@ -272,7 +272,7 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
                     className="text-[11px] text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="w-3 h-3" />
-                    <span>Add / Manage Units</span>
+                    <span>Manage Units</span>
                   </button>
                 )}
               </div>
@@ -298,7 +298,7 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[11px] font-bold text-stone-600 uppercase tracking-wider flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-stone-400" />
-                    <span>Property Address on Invoice</span>
+                    <span>Property Address</span>
                   </label>
                   {propertyAddress !== DEFAULT_PROPERTY_ADDRESS && (
                     <button
@@ -306,7 +306,7 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
                       onClick={() => setPropertyAddress(DEFAULT_PROPERTY_ADDRESS)}
                       className="text-[10px] text-emerald-700 hover:underline cursor-pointer"
                     >
-                      Reset to Default
+                      Reset
                     </button>
                   )}
                 </div>
@@ -330,7 +330,7 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-4 rounded-xl border border-stone-200 shadow-2xs">
               <div>
                 <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                  Billing Period Label
+                  Billing Period
                 </label>
                 <input
                   type="text"
@@ -360,16 +360,16 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
             <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-2xs">
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider">
-                  Electricity Submeter Readings
+                  Submeter Readings
                 </label>
                 <button
                   type="button"
                   onClick={handleAutoFillPreviousReading}
                   className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-md border border-amber-200 transition-colors cursor-pointer"
-                  title="Auto-fill Last Reading from the most recent bill for this unit"
+                  title="Auto-fill Last Reading from previous bill"
                 >
                   <Zap className="w-3 h-3 text-amber-600 fill-amber-500" />
-                  Auto-Fill Last Reading
+                  Auto-Fill Previous
                 </button>
               </div>
 
@@ -502,7 +502,7 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
             <div className="bg-[#2C332B] text-white p-4 rounded-xl flex items-center justify-between shadow-md">
               <div>
                 <span className="text-[11px] uppercase tracking-wider text-stone-300 font-semibold block">
-                  Total Amount Due (Rounded Up)
+                  Total Amount Due
                 </span>
                 <span className="text-xl sm:text-2xl font-extrabold text-amber-200 font-sans">
                   <CurrencyText amount={totalAmountDue} roundUp noDecimals />
@@ -521,7 +521,7 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
                   disabled={isSubmitting}
                   className="px-5 py-2 rounded-lg text-xs font-bold bg-amber-400 text-stone-950 hover:bg-amber-300 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Saving...' : initialBill ? 'Update Bill' : 'Save & Sync Bill'}
+                  {isSubmitting ? 'Saving...' : initialBill ? 'Update Bill' : 'Save Bill'}
                 </button>
               </div>
             </div>
@@ -533,9 +533,8 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
               activeTabMobile === 'form' ? 'hidden md:flex' : 'flex'
             }`}
           >
-            <div className="w-full max-w-[440px] mb-2 flex items-center justify-between text-xs text-stone-600 font-semibold uppercase tracking-wider px-1">
-              <span>Live Generated Invoice Card</span>
-              <span className="text-stone-400 font-normal lowercase">(matches attached reference)</span>
+            <div className="w-full max-w-[440px] mb-2 flex items-center justify-between text-xs text-stone-500 font-semibold uppercase tracking-wider px-1">
+              <span>Invoice Preview</span>
             </div>
             <InvoiceCard bill={previewBill} unitAddress={propertyAddress} />
           </div>

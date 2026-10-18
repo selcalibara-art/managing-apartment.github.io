@@ -435,21 +435,16 @@ export default function App() {
       <header className="sticky top-0 z-40 bg-[#2C332B] text-white shadow-md border-b border-[#3D453C]">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3.5 flex items-center justify-between gap-2">
           {/* Brand */}
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-stone-800/90 border border-stone-600 flex items-center justify-center text-amber-200 shadow-xs shrink-0">
               <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <h1 className="font-serif-invoice text-base sm:text-xl font-bold tracking-[0.14em] uppercase text-white leading-none truncate">
-                  CALIBARA APARTMENT
-                </h1>
-                <span className="hidden md:inline-block text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-200 border border-amber-300/30">
-                  Landlord Cloud
-                </span>
-              </div>
-              <p className="text-[9px] sm:text-[10px] text-stone-300 tracking-wider uppercase mt-0.5 font-medium truncate">
-                Batas, Silang, Cavite • Submeter & Payment Tracker
+              <h1 className="font-serif-invoice text-base sm:text-xl font-bold tracking-[0.14em] uppercase text-white leading-none truncate">
+                CALIBARA APARTMENT
+              </h1>
+              <p className="text-[10px] text-stone-300 tracking-wider uppercase mt-0.5 font-medium truncate">
+                Batas, Silang, Cavite
               </p>
             </div>
           </div>
@@ -459,7 +454,7 @@ export default function App() {
             {/* Live Cloud Status Button */}
             <button
               onClick={() => setIsCloudSyncModalOpen(true)}
-              className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 transition-colors shadow-2xs cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 transition-colors shadow-2xs cursor-pointer"
               title="Cloud Sync Settings"
             >
               <div
@@ -472,9 +467,9 @@ export default function App() {
                 }`}
               />
               <span className="hidden md:inline text-[11px] text-stone-200">
-                {syncState === 'synced' && 'Auto-Sync Active'}
-                {syncState === 'syncing' && 'Auto-Syncing...'}
-                {syncState === 'offline' && 'Offline Cache'}
+                {syncState === 'synced' && 'Synced'}
+                {syncState === 'syncing' && 'Syncing...'}
+                {syncState === 'offline' && 'Offline'}
                 {syncState === 'error' && 'Sync Error'}
               </span>
               <Cloud className="w-3.5 h-3.5 text-stone-300" />
@@ -485,17 +480,17 @@ export default function App() {
               onClick={handleCloudSync}
               disabled={syncState === 'syncing'}
               className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
-              title="Sync now with Google Sheets cloud"
+              title="Sync with Cloud"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${syncState === 'syncing' ? 'animate-spin' : ''}`} />
-              <span className="hidden lg:inline">Sync Now</span>
+              <span className="hidden lg:inline">Sync</span>
             </button>
 
             {/* Unit Info modal button */}
             <button
               onClick={() => setIsUnitManagerModalOpen(true)}
               className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-stone-800/90 hover:bg-stone-700/90 border border-stone-700 text-stone-200 transition-colors cursor-pointer flex items-center gap-1"
-              title="Manage Apartment Units and Tenant Info"
+              title="Manage Apartment Units"
             >
               <Building2 className="w-3.5 h-3.5" />
               <span className="hidden lg:inline">Units ({configuredUnits.length})</span>
@@ -536,8 +531,8 @@ export default function App() {
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-5 flex flex-col gap-5">
         {/* Workspace View Switcher Toolbar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2.5 sm:px-4 sm:py-3 rounded-2xl border border-stone-200 shadow-2xs">
-          <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-xl self-start">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-stone-200 shadow-2xs">
             <button
               type="button"
               onClick={() => setActiveView('statements')}
@@ -568,14 +563,6 @@ export default function App() {
               <span>Monthly Reports</span>
             </button>
           </div>
-
-          <div className="flex items-center justify-between sm:justify-end gap-3 text-xs text-stone-500">
-            <span className="hidden md:inline">
-              {activeView === 'statements'
-                ? 'Manage tenant statements, submeter readings, and payment proofs'
-                : 'Track monthly electricity consumption and payment collection rate trends'}
-            </span>
-          </div>
         </div>
 
         {activeView === 'reports' ? (
@@ -599,26 +586,26 @@ export default function App() {
               <span className="text-xs font-bold uppercase tracking-wider">Unpaid Balance</span>
               <Clock className="w-4 h-4 text-amber-600" />
             </div>
-            <p className="text-lg sm:text-2xl font-bold font-sans text-amber-700">
+            <p className="text-lg sm:text-2xl font-bold font-sans text-amber-700 tabular-nums">
               <CurrencyText amount={stats.totalUnpaidAmount} />
             </p>
-            <p className="text-[11px] text-stone-500 mt-1">
-              {stats.unpaidCount} {stats.unpaidCount === 1 ? 'bill' : 'bills'} awaiting payment
+            <p className="text-[11px] text-stone-500 mt-1 tabular-nums">
+              {stats.unpaidCount} {stats.unpaidCount === 1 ? 'bill' : 'bills'} unpaid
             </p>
           </div>
 
           {/* Paid Collected Card */}
           <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-stone-200 shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between text-stone-500 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">Total Collected</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Collected</span>
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             </div>
-            <p className="text-lg sm:text-2xl font-bold font-sans text-emerald-700">
+            <p className="text-lg sm:text-2xl font-bold font-sans text-emerald-700 tabular-nums">
               <CurrencyText amount={stats.totalPaidAmount} />
             </p>
-            <p className="text-[11px] text-stone-500 mt-1">
-              {stats.paidCount} paid in full
-              {stats.partialCount > 0 ? ` • ${stats.partialCount} partial` : ''}
+            <p className="text-[11px] text-stone-500 mt-1 tabular-nums">
+              {stats.paidCount} paid
+              {stats.partialCount > 0 ? ` · ${stats.partialCount} partial` : ''}
             </p>
           </div>
 
@@ -628,38 +615,29 @@ export default function App() {
               <span className="text-xs font-bold uppercase tracking-wider">Electricity Usage</span>
               <Zap className="w-4 h-4 text-blue-600" />
             </div>
-            <p className="text-lg sm:text-2xl font-bold font-sans text-stone-800">
+            <p className="text-lg sm:text-2xl font-bold font-sans text-stone-800 tabular-nums">
               {stats.totalKwh.toFixed(1)} <span className="text-xs font-medium text-stone-500">kWh</span>
             </p>
-            <p className="text-[11px] text-stone-500 mt-1">Total recorded submeter usage</p>
+            <p className="text-[11px] text-stone-500 mt-1">Submeter consumption</p>
           </div>
 
           {/* Units Capacity Card */}
           <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-stone-200 shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between text-stone-500 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">Apartment Units</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Units</span>
               <Building2 className="w-4 h-4 text-stone-700" />
             </div>
-            <p className="text-lg sm:text-2xl font-bold font-serif text-[#2C332B]">
+            <p className="text-lg sm:text-2xl font-bold font-serif text-[#2C332B] tabular-nums">
               {configuredUnits.length} {configuredUnits.length === 1 ? 'Unit' : 'Units'}
             </p>
             <div className="flex items-center gap-1 text-[10px] font-mono text-stone-500 mt-1 truncate">
-              <span>{configuredUnits.map((u) => u.replace(/^UNIT\s+/i, '')).join(' • ')}</span>
+              <span>{configuredUnits.map((u) => u.replace(/^UNIT\s+/i, '')).join(' · ')}</span>
             </div>
           </div>
         </div>
 
-        {/* 1. Unit Filter Bar (Section 3 Requirement) */}
-        <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-stone-200 shadow-2xs flex flex-col gap-2.5">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-stone-500" />
-              Filter by Unit
-            </span>
-            <span className="text-[11px] text-stone-400">
-              Showing: {selectedUnitFilter === 'ALL' ? 'All Units' : selectedUnitFilter}
-            </span>
-          </div>
+        {/* 1. Unit Filter Bar */}
+        <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-stone-200 shadow-2xs">
 
           {/* Horizontal scrollable unit chips */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -800,45 +778,42 @@ export default function App() {
         {/* Bills List / Grid */}
         {filteredBills.length === 0 ? (
           /* Empty State as requested (Zero initial pre-populated dummy bills) */
-          <div className="bg-white rounded-2xl border border-stone-200 p-8 sm:p-12 text-center shadow-2xs flex flex-col items-center">
-            <div className="w-16 h-16 rounded-2xl bg-stone-100 text-[#2C332B] flex items-center justify-center mb-4 border border-stone-200">
-              <Building2 className="w-8 h-8" />
+          <div className="bg-white rounded-2xl border border-stone-200 p-8 sm:p-10 text-center shadow-2xs flex flex-col items-center">
+            <div className="w-14 h-14 rounded-2xl bg-stone-100 text-[#2C332B] flex items-center justify-center mb-3.5 border border-stone-200">
+              <Building2 className="w-7 h-7" />
             </div>
 
-            <h3 className="font-serif-invoice text-xl sm:text-2xl font-bold uppercase tracking-wider text-[#2C332B]">
-              {bills.length === 0
-                ? 'Ready for Landlord Billing'
-                : 'No Bills Match Your Current Filter'}
+            <h3 className="font-serif-invoice text-lg sm:text-xl font-bold text-[#2C332B]">
+              {bills.length === 0 ? 'No Billing Statements Yet' : 'No Matching Statements'}
             </h3>
 
-            <p className="text-xs sm:text-sm text-stone-500 max-w-md mt-1.5 mb-6">
+            <p className="text-xs text-stone-500 max-w-sm mt-1 mb-5">
               {bills.length === 0
-                ? 'All 5 apartment containers (UNIT A1, B, C, S1, S2) are initialized with empty billing history. Create your first tenant billing statement below.'
-                : 'Try clearing your search query or switching unit filters to view other apartment statements.'}
+                ? 'Create a billing statement for any unit to begin.'
+                : 'Adjust your search or filter selection.'}
             </p>
 
-            <div className="flex flex-wrap items-center justify-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
               <button
                 onClick={() =>
                   openNewBillModal(
                     selectedUnitFilter !== 'ALL' ? selectedUnitFilter : 'UNIT S1'
                   )
                 }
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#2C332B] text-white hover:bg-[#1E231D] transition-colors shadow-sm cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#2C332B] text-white hover:bg-[#1E231D] transition-colors shadow-2xs cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>
-                  Create Bill for{' '}
-                  {selectedUnitFilter !== 'ALL' ? selectedUnitFilter : 'Unit S1'}
+                  Create Bill ({selectedUnitFilter !== 'ALL' ? selectedUnitFilter : 'UNIT S1'})
                 </span>
               </button>
 
               <button
                 onClick={() => setIsUnitManagerModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors border border-stone-200 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors border border-stone-200 cursor-pointer"
               >
                 <Building2 className="w-4 h-4" />
-                <span>Configure Tenant Profiles</span>
+                <span>Manage Units</span>
               </button>
             </div>
           </div>
@@ -1011,7 +986,7 @@ export default function App() {
                             <div className="flex-1 min-w-0">
                               <p className="text-[11px] font-bold text-emerald-900 truncate flex items-center gap-1">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                <span>Proof of Payment Attached</span>
+                                <span>Receipt Attached</span>
                               </p>
                               <p className="text-[10px] text-stone-600 truncate">
                                 {bill.paymentProof.datePaid || 'Recorded'} •{' '}
@@ -1132,12 +1107,9 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="mt-8 border-t border-stone-300 bg-white/70 py-4 px-4 text-center text-xs text-stone-500">
-        <p className="font-serif-invoice text-sm font-semibold tracking-wider uppercase text-[#2C332B]">
-          Calibara Apartment Landlord Portal
-        </p>
-        <p className="text-[11px] text-stone-400 mt-0.5">
-          Designed for Mobile & Computer • Real-time Google Apps Script REST API Sync • Batas, Silang, Cavite
+      <footer className="mt-8 border-t border-stone-200 bg-white/60 py-3.5 px-4 text-center text-xs text-stone-500">
+        <p className="font-serif-invoice text-xs font-semibold tracking-widest uppercase text-[#2C332B]">
+          Calibara Apartment · Batas, Silang, Cavite
         </p>
       </footer>
 
@@ -1190,10 +1162,7 @@ export default function App() {
               />
             </div>
 
-            <div className="p-3 bg-stone-200/60 border-t border-stone-300 flex justify-between items-center text-xs">
-              <span className="text-stone-500 text-[11px]">
-                Tip: Tap "Save PNG (2x)" to download or "Share" to send via Messenger.
-              </span>
+            <div className="p-3 bg-stone-100 border-t border-stone-200 flex justify-end items-center text-xs">
               <button
                 onClick={() => setActiveInvoiceModalBill(null)}
                 className="px-4 py-1.5 bg-[#2C332B] text-white rounded-lg font-bold hover:bg-[#1E231D] cursor-pointer"

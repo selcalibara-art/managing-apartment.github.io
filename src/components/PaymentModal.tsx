@@ -210,7 +210,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               {bill.unit} • {bill.billingPeriod}
             </span>
             <h3 className="font-semibold text-base sm:text-lg">
-              Record Payment & Proof of Payment
+              Record Payment
             </h3>
           </div>
           <button
@@ -270,7 +270,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           {/* 3-Way Payment Status Selector (UNPAID / PARTIAL / PAID IN FULL) */}
           <div className="p-3 bg-stone-50 rounded-xl border border-stone-200">
             <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-2">
-              1. Payment Status
+              Payment Status
             </label>
             <div className="grid grid-cols-3 gap-2">
               <button
@@ -314,11 +314,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
           </div>
 
-          {/* Amount Received Input (Always visible when PARTIAL or PAID, or click to type) */}
+          {/* Amount Received Input */}
           <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200">
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider">
-                2. How Much Did the Tenant Pay? (₱)
+                Amount Paid (₱)
               </label>
               <span
                 className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
@@ -330,8 +330,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 }`}
               >
                 {paymentStatus === 'PAID' && 'Paid in Full'}
-                {paymentStatus === 'PARTIAL' && `Partial (₱${remainingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} still owed)`}
-                {paymentStatus === 'UNPAID' && 'No payment yet'}
+                {paymentStatus === 'PARTIAL' && `Balance: ₱${remainingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                {paymentStatus === 'UNPAID' && 'Unpaid'}
               </span>
             </div>
 
@@ -344,7 +344,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="Enter exact amount paid..."
+                placeholder="0.00"
                 value={amountPaidInput}
                 onChange={(e) => handleAmountChange(e.target.value)}
                 className="w-full text-base font-extrabold pl-8 pr-3 py-2 rounded-lg border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#2C332B] bg-white text-stone-900"
@@ -353,22 +353,21 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
             {/* Quick Amount Buttons */}
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              <span className="text-[10px] text-stone-500 font-semibold mr-1">Quick set:</span>
               <button
                 type="button"
-                onClick={() => handleAmountChange(String(bill.totalAmountDue))}
+                onClick={() => handleAmountChange(String(roundedTotalDue))}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 cursor-pointer"
               >
-                Full (₱{bill.totalAmountDue.toLocaleString('en-US', { minimumFractionDigits: 2 })})
+                Full (₱{roundedTotalDue.toLocaleString('en-US')})
               </button>
               <button
                 type="button"
                 onClick={() =>
-                  handleAmountChange(String(Number((bill.totalAmountDue / 2).toFixed(2))))
+                  handleAmountChange(String(Math.ceil(roundedTotalDue / 2)))
                 }
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 cursor-pointer"
               >
-                50% Half (₱{(bill.totalAmountDue / 2).toLocaleString('en-US', { minimumFractionDigits: 2 })})
+                50% (₱{Math.ceil(roundedTotalDue / 2).toLocaleString('en-US')})
               </button>
               <button
                 type="button"
@@ -379,15 +378,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 }}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-stone-200 text-stone-800 hover:bg-stone-300 cursor-pointer"
               >
-                Type Custom Partial Amount
+                Custom Amount
               </button>
             </div>
           </div>
 
-          {/* Payment Receipt Image Upload & Large Preview */}
+          {/* Payment Receipt Image Upload & Preview */}
           <div>
             <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-              3. Proof of Payment / Receipt Photo (GCash, Maya, Bank, Cash)
+              Receipt / Proof of Payment
             </label>
 
             {receiptImage ? (
@@ -405,7 +404,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 text-emerald-800">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span className="text-xs font-bold">Proof of Payment Attached</span>
+                    <span className="text-xs font-bold">Receipt Attached</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
@@ -416,7 +415,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#2C332B] text-white hover:bg-[#1E231D] cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      <span>Full Screen</span>
+                      <span>View</span>
                     </button>
                     <button
                       type="button"
@@ -424,7 +423,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-200 text-stone-800 hover:bg-stone-300 cursor-pointer"
                     >
                       <Camera className="w-3.5 h-3.5" />
-                      <span>Change</span>
+                      <span>Replace</span>
                     </button>
                     <button
                       type="button"
@@ -440,16 +439,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             ) : (
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-stone-300 hover:border-[#2C332B] rounded-xl p-4 text-center bg-stone-50 hover:bg-stone-100 transition-colors cursor-pointer flex flex-col items-center justify-center gap-1.5"
+                className="border-2 border-dashed border-stone-300 hover:border-[#2C332B] rounded-xl p-4 text-center bg-stone-50 hover:bg-stone-100 transition-colors cursor-pointer flex flex-col items-center justify-center gap-1"
               >
-                <Upload className="w-6 h-6 text-stone-500" />
+                <Upload className="w-5 h-5 text-stone-500" />
                 <span className="text-xs font-bold text-stone-700">
-                  {isCompressing
-                    ? 'Processing & compressing receipt photo...'
-                    : 'Tap to Upload Receipt Screenshot or Photo'}
-                </span>
-                <span className="text-[11px] text-stone-500">
-                  Works for both Partial Payments and Full Payments (GCash, Maya, Bank QR, Cash)
+                  {isCompressing ? 'Processing image...' : 'Upload Receipt Image'}
                 </span>
               </div>
             )}
@@ -493,11 +487,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
             <div>
               <label className="block text-xs font-medium text-stone-600 mb-1">
-                Reference / Ref #
+                Reference #
               </label>
               <input
                 type="text"
-                placeholder="e.g. 102938475"
+                placeholder="Optional"
                 value={referenceNo}
                 onChange={(e) => setReferenceNo(e.target.value)}
                 className="w-full text-xs font-medium px-3 py-2 rounded-lg border border-stone-300 focus:outline-none focus:ring-1 focus:ring-[#2C332B] bg-stone-50"
@@ -508,11 +502,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           {/* Notes */}
           <div>
             <label className="block text-xs font-medium text-stone-600 mb-1">
-              Payment Notes / Remarks
+              Notes
             </label>
             <textarea
               rows={2}
-              placeholder="e.g. Partial payment of ₱2,000 via GCash; promised remaining balance on Friday"
+              placeholder="Optional remarks"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full text-xs font-medium px-3 py-2 rounded-lg border border-stone-300 focus:outline-none focus:ring-1 focus:ring-[#2C332B] bg-stone-50"
@@ -540,13 +534,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               disabled={isSaving || isCompressing}
               className="px-5 py-2.5 rounded-lg text-xs font-bold bg-[#2C332B] text-white hover:bg-[#1E231D] transition-colors shadow-xs cursor-pointer disabled:opacity-50"
             >
-              {isSaving
-                ? 'Saving & Syncing...'
-                : paymentStatus === 'PARTIAL'
-                ? `Save Partial Payment (₱${numericAmountPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })})`
-                : paymentStatus === 'PAID'
-                ? 'Save as Paid in Full'
-                : 'Save Payment Status'}
+              {isSaving ? 'Saving...' : 'Save Payment'}
             </button>
           </div>
         </form>

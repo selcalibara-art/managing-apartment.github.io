@@ -199,14 +199,14 @@ export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
           <div>
             <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-stone-500">
               <Calendar className="w-3.5 h-3.5 text-stone-600 shrink-0" />
-              <span>Monthly Billing & Consumption Ledger</span>
+              <span>Monthly Summary</span>
               <span aria-hidden="true">·</span>
               <span className="tabular-nums">
                 {report.billCount} {report.billCount === 1 ? 'statement' : 'statements'}
               </span>
             </div>
             <h2 className="font-serif-invoice text-xl sm:text-2xl font-bold text-[#2C332B] tracking-wide mt-0.5">
-              {report.monthLabel} Report
+              {report.monthLabel}
             </h2>
           </div>
 
@@ -283,9 +283,6 @@ export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
 
         {/* Quick Month Switcher Bar */}
         <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-stone-100 pb-0.5">
-          <span className="text-[11px] font-semibold text-stone-400 mr-1 whitespace-nowrap">
-            Billing Periods:
-          </span>
           {availableMonths.map((mKey) => {
             const isSelected = activeMonthKey === mKey;
             const monthCount = bills.filter((b) => {
@@ -477,15 +474,10 @@ export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-stone-200 flex flex-col justify-between gap-4">
           <div>
             <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-[#2C332B] flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span>Electricity Consumption Trends (kWh)</span>
-                </h3>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  Submeter usage across billing months and unit share for {report.monthLabel}
-                </p>
-              </div>
+              <h3 className="text-sm font-bold text-[#2C332B] flex items-center gap-1.5">
+                <Zap className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>Electricity Consumption (kWh)</span>
+              </h3>
               {report.highestConsumingUnit && (
                 <div className="text-right text-xs tabular-nums shrink-0">
                   <span className="text-stone-400 block text-[11px]">Peak Unit</span>
@@ -498,9 +490,9 @@ export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
 
             {/* Month-over-Month Electricity Bar Chart */}
             {trendSeries.length > 0 ? (
-              <div className="mt-4 flex flex-col gap-2">
+              <div className="mt-3 flex flex-col gap-2">
                 <span className="text-[11px] font-semibold text-stone-500">
-                  Monthly Submeter Usage History (Click month to inspect)
+                  Monthly History
                 </span>
                 <div className="flex flex-col gap-2">
                   {trendSeries.slice(-6).map((point) => {
@@ -594,17 +586,12 @@ export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-stone-200 flex flex-col justify-between gap-4">
           <div>
             <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-[#2C332B] flex items-center gap-1.5">
-                  <BarChart3 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Payment Collection Rate Trends</span>
-                </h3>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  Collection rate (%) and collected vs unpaid balance across billing periods
-                </p>
-              </div>
+              <h3 className="text-sm font-bold text-[#2C332B] flex items-center gap-1.5">
+                <BarChart3 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Collection Rate Trends</span>
+              </h3>
               <div className="text-right text-xs tabular-nums shrink-0">
-                <span className="text-stone-400 block text-[11px]">Avg Electricity Rate</span>
+                <span className="text-stone-400 block text-[11px]">Avg Rate</span>
                 <span className="font-bold text-stone-800">
                   {report.averageRatePerKwh > 0 ? (
                     <>
@@ -618,9 +605,9 @@ export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
             </div>
 
             {trendSeries.length > 0 ? (
-              <div className="mt-4 flex flex-col gap-2">
+              <div className="mt-3 flex flex-col gap-2">
                 <span className="text-[11px] font-semibold text-stone-500">
-                  Monthly Collection Rate History (Click month to inspect)
+                  Monthly History
                 </span>
                 <div className="flex flex-col gap-2">
                   {trendSeries.slice(-6).map((point) => {
@@ -709,15 +696,9 @@ export const MonthlyReportsView: React.FC<MonthlyReportsViewProps> = ({
       {/* Per-Unit Monthly Billing & Collection Ledger Table */}
       <div className="bg-white rounded-2xl border border-stone-200 shadow-2xs overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-bold text-[#2C332B]">
-              Unit-by-Unit Monthly Ledger — {report.monthLabel}
-            </h3>
-            <p className="text-xs text-stone-500 mt-0.5">
-              Complete breakdown of submeter readings, electricity charges, rent, and collection
-              status per apartment unit
-            </p>
-          </div>
+          <h3 className="text-base font-bold text-[#2C332B]">
+            Unit Ledger · {report.monthLabel}
+          </h3>
 
           {/* Segmented Unit Filter */}
           <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl text-xs font-semibold overflow-x-auto">

@@ -193,17 +193,17 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
             onClick={handleDownloadImage}
             disabled={isExporting}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#2C332B] text-white hover:bg-[#1E231D] transition-colors shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
-            title="Save high resolution PNG image of this invoice"
+            title="Save PNG image of this invoice"
           >
             {downloadSuccess ? (
               <>
                 <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Saved!</span>
+                <span>Saved</span>
               </>
             ) : (
               <>
                 <Download className={`w-3.5 h-3.5 ${isExporting ? 'animate-bounce' : ''}`} />
-                <span>{isExporting ? 'Generating...' : 'Save PNG (2x)'}</span>
+                <span>{isExporting ? 'Saving...' : 'Save PNG'}</span>
               </>
             )}
           </button>
@@ -478,10 +478,10 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
               )}
               <span className="font-bold uppercase tracking-wider text-stone-800">
                 {paymentStatus === 'PAID'
-                  ? 'Paid in Full • Proof of Payment'
+                  ? 'Paid in Full'
                   : paymentStatus === 'PARTIAL'
-                  ? 'Partial Payment Recorded'
-                  : 'No Payment Recorded Yet'}
+                  ? 'Partial Payment'
+                  : 'Payment Record'}
               </span>
             </div>
             {onMarkAsPaid && (
@@ -490,7 +490,7 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
                 onClick={onMarkAsPaid}
                 className="px-2.5 py-1 rounded-lg bg-[#2C332B] text-white font-semibold hover:bg-[#1E231D] cursor-pointer text-[11px]"
               >
-                {hasProof ? 'Update Payment / Proof' : 'Record Payment'}
+                {hasProof ? 'Edit Payment' : 'Record Payment'}
               </button>
             )}
           </div>
@@ -547,9 +547,9 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
               )}
 
               {bill.paymentProof?.dataUrl && (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
-                    Attached Receipt Screenshot / Photo:
+                    Receipt
                   </span>
                   <div
                     onClick={() =>
@@ -567,7 +567,7 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
                     />
                     <div className="absolute bottom-2 right-2 bg-[#2C332B]/90 text-white px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 shadow-sm">
                       <Eye className="w-3.5 h-3.5" />
-                      <span>Tap to Zoom</span>
+                      <span>View</span>
                     </div>
                   </div>
                 </div>
@@ -575,7 +575,7 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
             </div>
           ) : (
             <p className="text-stone-500 text-[11px]">
-              No payment or receipt screenshot attached yet. Click "Record Payment" to log a partial or full payment.
+              No payment recorded yet.
             </p>
           )}
         </div>
