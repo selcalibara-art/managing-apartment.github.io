@@ -4,7 +4,10 @@ import {
   calculateConsumption,
   calculateElectricityTotal,
   calculateTotalDue,
+  roundUpAmount,
+  getRoundedTotalDue,
   formatCurrency,
+  formatWholeCurrency,
   formatReading,
   formatKwh,
   getPreviousReadingForUnit,
@@ -33,13 +36,18 @@ test('calculateElectricityTotal multiplies consumption and rate accurately', () 
   assert.equal(calculateElectricityTotal(12.5, 15.0), 187.5);
 });
 
-test('calculateTotalDue sums electricity and all rent rows', () => {
+test('calculateTotalDue sums electricity and all rent rows and always rounds up (no decimals)', () => {
   const rentItems = [
     { id: '1', description: 'Rent October', amount: 5000 },
     { id: '2', description: 'Water share', amount: 150 },
   ];
-  const electricity = 187.5;
-  assert.equal(calculateTotalDue(electricity, rentItems), 5337.5);
+  // 187.5 + 5150 = 5337.5 -> rounds up to 5338
+  assert.equal(calculateTotalDue(187.5, rentItems), 5338);
+  // Exact integer stays integer
+  assert.equal(calculateTotalDue(150.0, rentItems), 5300);
+  // Any decimal (.01) rounds up to next whole peso
+  assert.equal(roundUpAmount(5337.01), 5338);
+  assert.equal(formatWholeCurrency(5337.25), '₱5,338');
 });
 
 test('formatCurrency formats peso symbol and decimal places', () => {

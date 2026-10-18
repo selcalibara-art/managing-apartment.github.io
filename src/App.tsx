@@ -958,7 +958,7 @@ export default function App() {
                         TOTAL AMOUNT DUE:
                       </span>
                       <span className="font-serif-invoice text-lg font-extrabold text-[#2C332B]">
-                        <CurrencyText amount={bill.totalAmountDue} />
+                        <CurrencyText amount={bill.totalAmountDue} roundUp noDecimals />
                       </span>
                     </div>
 

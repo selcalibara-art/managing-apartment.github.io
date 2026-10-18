@@ -502,10 +502,10 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
             <div className="bg-[#2C332B] text-white p-4 rounded-xl flex items-center justify-between shadow-md">
               <div>
                 <span className="text-[11px] uppercase tracking-wider text-stone-300 font-semibold block">
-                  Total Amount Due
+                  Total Amount Due (Rounded Up)
                 </span>
                 <span className="text-xl sm:text-2xl font-extrabold text-amber-200 font-sans">
-                  <CurrencyText amount={totalAmountDue} />
+                  <CurrencyText amount={totalAmountDue} roundUp noDecimals />
                 </span>
               </div>
               <div className="flex gap-2">

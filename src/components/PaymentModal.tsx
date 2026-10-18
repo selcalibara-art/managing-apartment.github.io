@@ -14,6 +14,7 @@ import {
   PaymentStatus,
   getAmountPaid,
   getBillPaymentStatus,
+  getRoundedTotalDue,
 } from '../utils/billing';
 import { compressImage } from '../utils/imageCompressor';
 import { CurrencyText } from './CurrencyText';
@@ -33,6 +34,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onSavePayment,
   onViewReceiptFull,
 }) => {
+  const roundedTotalDue = getRoundedTotalDue(bill);
   const initialStatus = getBillPaymentStatus(bill);
   const initialPaidAmount = getAmountPaid(bill);
 
@@ -40,7 +42,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     initialStatus === 'UNPAID' ? 'PAID' : initialStatus
   );
   const [amountPaidInput, setAmountPaidInput] = useState<string>(
-    initialPaidAmount > 0 ? String(initialPaidAmount) : String(bill.totalAmountDue)
+    initialPaidAmount > 0 ? String(initialPaidAmount) : String(roundedTotalDue)
   );
   const [datePaid, setDatePaid] = useState<string>(
     bill.paymentProof?.datePaid || new Date().toISOString().slice(0, 10)
@@ -63,7 +65,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const numericAmountPaid = Math.max(0, parseFloat(amountPaidInput) || 0);
   const remainingBalance = Math.max(
     0,
-    Number((bill.totalAmountDue - numericAmountPaid).toFixed(2))
+    Number((roundedTotalDue - numericAmountPaid).toFixed(2))
   );
 
   // Dynamically determine effective status based on amount entered vs total due
@@ -78,7 +80,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     const num = Math.max(0, parseFloat(rawVal) || 0);
     if (num <= 0) {
       setPaymentStatus('UNPAID');
-    } else if (num < bill.totalAmountDue - 0.009) {
+    } else if (num < roundedTotalDue - 0.009) {
       setPaymentStatus('PARTIAL');
     } else {
       setPaymentStatus('PAID');
@@ -91,11 +93,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     if (newStatus === 'UNPAID') {
       setAmountPaidInput('0');
     } else if (newStatus === 'PAID') {
-      setAmountPaidInput(String(bill.totalAmountDue));
+      setAmountPaidInput(String(roundedTotalDue));
     } else if (newStatus === 'PARTIAL') {
       // If currently full amount or 0, set to half or keep current partial amount and focus input
-      if (numericAmountPaid >= bill.totalAmountDue || numericAmountPaid <= 0) {
-        const half = Number((bill.totalAmountDue / 2).toFixed(2));
+      if (numericAmountPaid >= roundedTotalDue || numericAmountPaid <= 0) {
+        const half = Math.ceil(roundedTotalDue / 2);
         setAmountPaidInput(String(half));
       }
       setTimeout(() => {
@@ -117,7 +119,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       // Never overwrite partial status or partial amount when uploading proof of payment
       if (paymentStatus === 'UNPAID' && numericAmountPaid <= 0 && amountPaidInput.trim() !== '') {
         setPaymentStatus('PAID');
-        setAmountPaidInput(String(bill.totalAmountDue));
+        setAmountPaidInput(String(roundedTotalDue));
       }
     } catch (err) {
       console.error('Error compressing receipt image:', err);
@@ -154,9 +156,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       let finalStatus: PaymentStatus = paymentStatus;
       if (finalAmountPaid <= 0 && paymentStatus === 'UNPAID') {
         finalStatus = 'UNPAID';
-      } else if (finalAmountPaid > 0 && finalAmountPaid < bill.totalAmountDue - 0.009) {
+      } else if (finalAmountPaid > 0 && finalAmountPaid < roundedTotalDue - 0.009) {
         finalStatus = 'PARTIAL';
-      } else if (finalAmountPaid >= bill.totalAmountDue - 0.009 && bill.totalAmountDue > 0) {
+      } else if (finalAmountPaid >= roundedTotalDue - 0.009 && roundedTotalDue > 0) {
         finalStatus = 'PAID';
       }
 
@@ -171,6 +173,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
       const updatedBill: Bill = {
         ...bill,
+        totalAmountDue: roundedTotalDue,
         isPaid: isPaidInFull,
         paymentStatus: finalStatus,
         paymentProof: shouldKeepProof
@@ -225,7 +228,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               Total Bill Due
             </span>
             <span className="text-sm sm:text-base font-extrabold text-stone-900">
-              <CurrencyText amount={bill.totalAmountDue} />
+              <CurrencyText amount={roundedTotalDue} roundUp noDecimals />
             </span>
           </div>
 

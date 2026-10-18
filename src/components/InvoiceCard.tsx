@@ -14,11 +14,13 @@ import {
   Bill,
   formatReading,
   formatKwh,
+  formatWholeCurrency,
   DEFAULT_PROPERTY_ADDRESS,
   getAmountPaid,
   getRemainingBalance,
   getBillPaymentStatus,
   hasPaymentProofDetails,
+  getRoundedTotalDue,
 } from '../utils/billing';
 import { CurrencyText } from './CurrencyText';
 
@@ -42,6 +44,7 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
+  const roundedTotalDue = getRoundedTotalDue(bill);
   const paymentStatus = getBillPaymentStatus(bill);
   const amountPaid = getAmountPaid(bill);
   const remainingBalance = getRemainingBalance(bill);
@@ -120,7 +123,7 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
           await navigator.share({
             files: [file],
             title: `Calibara Invoice - ${bill.unit}`,
-            text: `Here is the billing statement for ${bill.unit} (${bill.billingPeriod}). Total Amount Due: ₱${bill.totalAmountDue.toFixed(2)}.`,
+            text: `Here is the billing statement for ${bill.unit} (${bill.billingPeriod}). Total Amount Due: ${formatWholeCurrency(roundedTotalDue)}.`,
           });
         } catch (shareErr) {
           console.log('Share dismissed', shareErr);
@@ -129,13 +132,13 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
         try {
           await navigator.share({
             title: `Calibara Invoice - ${bill.unit}`,
-            text: `Calibara Apartment ${bill.unit} Invoice for ${bill.billingPeriod}. Total Amount Due: ₱${bill.totalAmountDue.toFixed(2)}.`,
+            text: `Calibara Apartment ${bill.unit} Invoice for ${bill.billingPeriod}. Total Amount Due: ${formatWholeCurrency(roundedTotalDue)}.`,
           });
         } catch {}
       } else {
-        const textSummary = `CALIBARA APARTMENT INVOICE\nUnit: ${bill.unit}\nPeriod: ${bill.billingPeriod}\nTotal Consumption: ${formatKwh(bill.consumptionKwh)}\nTotal Electricity: ₱${bill.electricityTotal.toFixed(2)}\nTOTAL AMOUNT DUE: ₱${bill.totalAmountDue.toFixed(2)}${
+        const textSummary = `CALIBARA APARTMENT INVOICE\nUnit: ${bill.unit}\nPeriod: ${bill.billingPeriod}\nTotal Consumption: ${formatKwh(bill.consumptionKwh)}\nTotal Electricity: ₱${bill.electricityTotal.toFixed(2)}\nTOTAL AMOUNT DUE: ${formatWholeCurrency(roundedTotalDue)}${
           paymentStatus === 'PARTIAL'
-            ? `\nAmount Paid: ₱${amountPaid.toFixed(2)}\nRemaining Balance: ₱${remainingBalance.toFixed(2)}`
+            ? `\nAmount Paid: ₱${amountPaid.toFixed(2)}\nRemaining Balance: ${formatWholeCurrency(remainingBalance)}`
             : ''
         }`;
         await navigator.clipboard.writeText(textSummary);
@@ -226,10 +229,10 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
                   PARTIAL PAID
                 </span>
                 <span className="text-[11px] font-bold text-amber-900 mt-0.5">
-                  PAID: ₱{amountPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  PAID: ₱{amountPaid.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(amountPaid) ? 0 : 2, maximumFractionDigits: 2 })}
                 </span>
                 <span className="text-[10px] font-bold text-rose-800">
-                  BAL DUE: ₱{remainingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  BAL DUE: {formatWholeCurrency(remainingBalance)}
                 </span>
               </div>
             ) : (
@@ -409,13 +412,16 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
               </span>
             </div>
 
-            {/* 7. Grand Total Row Fill: "TOTAL AMOUNT DUE" (Warm Greige/Tan #CCC8B8) */}
+            {/* 7. Grand Total Row Fill: "TOTAL AMOUNT DUE" (Warm Greige/Tan #CCC8B8) - Always rounded up with no decimals */}
             <div className="flex justify-between items-center px-3.5 py-2.5 bg-[#CCC8B8] text-[#2C332B] font-heading-invoice">
               <span className="text-xs sm:text-[13px] font-bold tracking-[0.14em] uppercase">
                 TOTAL AMOUNT DUE
               </span>
-              <span className="text-sm sm:text-base font-extrabold tracking-tight">
-                <CurrencyText amount={bill.totalAmountDue} />
+              <span
+                className="text-sm sm:text-base font-extrabold tracking-tight"
+                data-testid="invoice-total-amount-due"
+              >
+                <CurrencyText amount={roundedTotalDue} roundUp noDecimals />
               </span>
             </div>
 
@@ -427,7 +433,7 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
                     Less: Amount Paid ({bill.paymentProof?.paymentMethod || 'Partial'})
                   </span>
                   <span className="font-bold">
-                    - <CurrencyText amount={amountPaid} />
+                    - <CurrencyText amount={amountPaid} noDecimals={Number.isInteger(amountPaid)} />
                   </span>
                 </div>
                 <div className="flex justify-between items-center px-3.5 py-2.5 bg-[#2C332B] text-amber-200 font-heading-invoice">
@@ -435,7 +441,7 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
                     REMAINING BALANCE DUE
                   </span>
                   <span className="text-sm sm:text-base font-extrabold tracking-tight">
-                    <CurrencyText amount={remainingBalance} />
+                    <CurrencyText amount={remainingBalance} roundUp noDecimals />
                   </span>
                 </div>
               </>

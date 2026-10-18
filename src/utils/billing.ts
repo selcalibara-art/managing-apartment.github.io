@@ -118,11 +118,27 @@ export function calculateElectricityTotal(consumption: number, ratePerKwh: numbe
 }
 
 /**
- * Calculates total amount due from electricity and all rent/additional rows
+ * Rounds up a numeric peso amount to the next whole integer (no decimals)
+ */
+export function roundUpAmount(amount: number): number {
+  const safe = isNaN(amount) ? 0 : amount;
+  if (safe <= 0) return 0;
+  return Math.ceil(Number(safe.toFixed(4)));
+}
+
+/**
+ * Returns the rounded-up whole integer total amount due for a bill
+ */
+export function getRoundedTotalDue(bill: Bill): number {
+  return roundUpAmount(Number(bill.totalAmountDue) || 0);
+}
+
+/**
+ * Calculates total amount due from electricity and all rent/additional rows, always rounded up (no decimals)
  */
 export function calculateTotalDue(electricityTotal: number, rentItems: RentChargeItem[]): number {
   const rentSum = rentItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
-  return Number((electricityTotal + rentSum).toFixed(2));
+  return roundUpAmount(electricityTotal + rentSum);
 }
 
 /**
@@ -133,7 +149,7 @@ export function getAmountPaid(bill: Bill): number {
     return Math.max(0, Number(bill.paymentProof.amountPaid.toFixed(2)));
   }
   if (bill.isPaid) {
-    return Number((bill.totalAmountDue || 0).toFixed(2));
+    return getRoundedTotalDue(bill);
   }
   return 0;
 }
@@ -143,7 +159,7 @@ export function getAmountPaid(bill: Bill): number {
  */
 export function getRemainingBalance(bill: Bill): number {
   const paid = getAmountPaid(bill);
-  const remaining = (bill.totalAmountDue || 0) - paid;
+  const remaining = getRoundedTotalDue(bill) - paid;
   return Math.max(0, Number(remaining.toFixed(2)));
 }
 
@@ -152,7 +168,7 @@ export function getRemainingBalance(bill: Bill): number {
  */
 export function getBillPaymentStatus(bill: Bill): PaymentStatus {
   const paid = getAmountPaid(bill);
-  const total = bill.totalAmountDue || 0;
+  const total = getRoundedTotalDue(bill);
 
   if (paid > 0 && paid < total - 0.009) {
     return 'PARTIAL';
@@ -190,6 +206,17 @@ export function formatCurrency(amount: number): string {
   return `₱${safeAmount.toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  })}`;
+}
+
+/**
+ * Whole-peso currency formatter with round-up and no decimals (e.g. ₱5,338)
+ */
+export function formatWholeCurrency(amount: number): string {
+  const rounded = roundUpAmount(amount);
+  return `₱${rounded.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   })}`;
 }
 
@@ -409,7 +436,7 @@ export function computeMonthlyTrendSeries(bills: Bill[]): MonthlyTrendPoint[] {
       const kwh = Number(b.consumptionKwh) || 0;
       const elec = Number(b.electricityTotal) || 0;
       const rentSum = (b.rentItems || []).reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
-      const due = Number(b.totalAmountDue) || 0;
+      const due = getRoundedTotalDue(b);
       const paid = getAmountPaid(b);
       const rem = getRemainingBalance(b);
       const st = getBillPaymentStatus(b);
@@ -480,7 +507,7 @@ export function computeMonthlyReport(
     const kwh = Number(b.consumptionKwh) || 0;
     const elec = Number(b.electricityTotal) || 0;
     const rentSum = (b.rentItems || []).reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
-    const due = Number(b.totalAmountDue) || 0;
+    const due = getRoundedTotalDue(b);
     const paid = getAmountPaid(b);
     const rem = getRemainingBalance(b);
     const st = getBillPaymentStatus(b);
@@ -538,7 +565,7 @@ export function computeMonthlyReport(
       uKwh += Number(b.consumptionKwh) || 0;
       uElec += Number(b.electricityTotal) || 0;
       uRent += (b.rentItems || []).reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
-      uBilled += Number(b.totalAmountDue) || 0;
+      uBilled += getRoundedTotalDue(b);
       uPaid += getAmountPaid(b);
       uRem += getRemainingBalance(b);
     });

@@ -4,6 +4,8 @@ interface CurrencyTextProps {
   amount: number;
   className?: string;
   symbolClassName?: string;
+  noDecimals?: boolean;
+  roundUp?: boolean;
 }
 
 export const PesoSymbol: React.FC<{ className?: string }> = ({
@@ -27,11 +29,14 @@ export const CurrencyText: React.FC<CurrencyTextProps> = ({
   amount,
   className = '',
   symbolClassName = '',
+  noDecimals = false,
+  roundUp = false,
 }) => {
-  const safe = isNaN(amount) ? 0 : amount;
+  const rawSafe = isNaN(amount) ? 0 : amount;
+  const safe = roundUp ? Math.ceil(Number(rawSafe.toFixed(4))) : rawSafe;
   const formattedNumber = safe.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: noDecimals ? 0 : 2,
+    maximumFractionDigits: noDecimals ? 0 : 2,
   });
 
   return (
@@ -41,3 +46,4 @@ export const CurrencyText: React.FC<CurrencyTextProps> = ({
     </span>
   );
 };
+
