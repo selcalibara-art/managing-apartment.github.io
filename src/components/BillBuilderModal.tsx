@@ -143,24 +143,6 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
     ]);
   };
 
-  const handleAddLateFeeRow = (presetAmount = 200) => {
-    const existingLateFeeIdx = rentItems.findIndex((item) =>
-      /late\s*fee|penalty/i.test(item.description)
-    );
-    if (existingLateFeeIdx >= 0) {
-      setRentItems(
-        rentItems.map((item, idx) =>
-          idx === existingLateFeeIdx ? { ...item, amount: presetAmount } : item
-        )
-      );
-    } else {
-      setRentItems([
-        ...rentItems,
-        { id: `late-fee-${Date.now()}`, description: 'Late Payment Fee', amount: presetAmount },
-      ]);
-    }
-  };
-
   const handleRemoveRentRow = (id: string) => {
     setRentItems(rentItems.filter((item) => item.id !== id));
   };
@@ -468,46 +450,20 @@ export const BillBuilderModal: React.FC<BillBuilderModalProps> = ({
               </div>
             </div>
 
-            {/* Rent, Late Fees & Additional Charge Rows */}
+            {/* Rent & Additional Charge Rows */}
             <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-2xs">
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+              <div className="flex items-center justify-between mb-2">
                 <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider">
-                  Rent & Late Fees
+                  Rent & Additional Charges
                 </label>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleAddLateFeeRow(200)}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-800 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-md border border-rose-200 transition-colors cursor-pointer"
-                    title="Add or update a Late Payment Fee row"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Late Fee
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleAddRentRow}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#2C332B] bg-stone-100 hover:bg-stone-200 px-2.5 py-1 rounded-md border border-stone-300 transition-colors cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Add Row
-                  </button>
-                </div>
-              </div>
-
-              {/* Quick Late Fee Presets */}
-              <div className="flex flex-wrap items-center gap-1.5 mb-2.5 pb-2 border-b border-stone-100 text-[11px]">
-                <span className="text-stone-400 font-semibold mr-0.5">Late Fee Presets:</span>
-                {[100, 200, 300, 500].map((amt) => (
-                  <button
-                    key={amt}
-                    type="button"
-                    onClick={() => handleAddLateFeeRow(amt)}
-                    className="px-2 py-0.5 rounded-md bg-stone-100 hover:bg-rose-50 hover:text-rose-800 hover:border-rose-200 text-stone-700 font-semibold border border-stone-200 transition-colors cursor-pointer tabular-nums"
-                  >
-                    +₱{amt}
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  onClick={handleAddRentRow}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#2C332B] bg-stone-100 hover:bg-stone-200 px-2 py-1 rounded-md border border-stone-300 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add Row
+                </button>
               </div>
 
               <div className="flex flex-col gap-2">
