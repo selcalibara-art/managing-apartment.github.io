@@ -1,6 +1,9 @@
 import { Bill, ApartmentUnit, UnitInfo, INITIAL_UNIT_INFO, formatDisplayDate } from '../utils/billing';
 
 export const DEFAULT_GAS_URL =
+  'https://script.google.com/macros/s/AKfycbxp9luDJ61Mm9HkbM86-Qo7E57QMU93Sn8vmCUaFmDWkRcAEhDWFisZD7vyEXsZFkd-/exec';
+
+const LEGACY_GAS_URL =
   'https://script.google.com/macros/s/AKfycby3-Le2s1KPRGPOu7F64k24eNONenQVbguofmEHoFN312C4MFh1dPk6jKofHWT9Q-e2/exec';
 
 const STORAGE_KEY_API_URL = 'calibara_gas_url';
@@ -224,7 +227,12 @@ export function mergeCloudAndLocalBills(localBills: Bill[], cloudBills: Bill[]):
 
 export function getStoredApiUrl(): string {
   if (typeof window === 'undefined') return DEFAULT_GAS_URL;
-  return localStorage.getItem(STORAGE_KEY_API_URL) || DEFAULT_GAS_URL;
+  const stored = localStorage.getItem(STORAGE_KEY_API_URL);
+  if (!stored || !stored.trim() || stored.trim() === LEGACY_GAS_URL) {
+    localStorage.setItem(STORAGE_KEY_API_URL, DEFAULT_GAS_URL);
+    return DEFAULT_GAS_URL;
+  }
+  return stored.trim();
 }
 
 export function setStoredApiUrl(url: string): void {

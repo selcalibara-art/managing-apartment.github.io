@@ -41,6 +41,7 @@ import {
   getAvailableMonths,
   getBillMonthKey,
   formatDisplayDate,
+  calculateTotalDue,
 } from './utils/billing';
 import { CurrencyText } from './components/CurrencyText';
 import {
@@ -113,6 +114,8 @@ export default function App() {
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
   const [isUnitManagerModalOpen, setIsUnitManagerModalOpen] = useState(false);
   const [isPinSettingsOpen, setIsPinSettingsOpen] = useState(false);
+  const [lateFeeModalBill, setLateFeeModalBill] = useState<Bill | null>(null);
+  const [lateFeeInputAmount, setLateFeeInputAmount] = useState<string>('200');
   const [syncToast, setSyncToast] = useState<{
     message: string;
     type: 'syncing' | 'synced' | 'offline';
@@ -419,6 +422,69 @@ export default function App() {
     setEditingBill(bill);
     setBuilderDefaultUnit(bill.unit);
     setIsBillBuilderOpen(true);
+  };
+
+  // Quick Add Late Fee handler for unpaid / partial bills
+  const handleQuickAddLateFee = (bill: Bill) => {
+    const existingLateFee = (bill.rentItems || []).find((item) =>
+      /late\s*fee|penalty/i.test(item.description)
+    );
+    setLateFeeInputAmount(existingLateFee ? String(existingLateFee.amount) : '200');
+    setLateFeeModalBill(bill);
+  };
+
+  const handleConfirmLateFee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lateFeeModalBill) return;
+    const feeAmount = Math.max(0, parseFloat(lateFeeInputAmount) || 0);
+
+    const currentItems = Array.isArray(lateFeeModalBill.rentItems)
+      ? [...lateFeeModalBill.rentItems]
+      : [];
+    const existingIdx = currentItems.findIndex((item) =>
+      /late\s*fee|penalty/i.test(item.description)
+    );
+
+    if (feeAmount <= 0) {
+      if (existingIdx >= 0) {
+        currentItems.splice(existingIdx, 1);
+      }
+    } else if (existingIdx >= 0) {
+      currentItems[existingIdx] = {
+        ...currentItems[existingIdx],
+        description: 'Late Payment Fee',
+        amount: Number(feeAmount.toFixed(2)),
+      };
+    } else {
+      currentItems.push({
+        id: `late-fee-${Date.now()}`,
+        description: 'Late Payment Fee',
+        amount: Number(feeAmount.toFixed(2)),
+      });
+    }
+
+    const newTotalDue = calculateTotalDue(lateFeeModalBill.electricityTotal, currentItems);
+    const paid = getAmountPaid(lateFeeModalBill);
+    const isNowPaid = paid >= newTotalDue - 0.009 && newTotalDue > 0;
+    const newStatus = isNowPaid ? 'PAID' : paid > 0 ? 'PARTIAL' : 'UNPAID';
+
+    const updatedBill: Bill = {
+      ...lateFeeModalBill,
+      rentItems: currentItems,
+      totalAmountDue: newTotalDue,
+      isPaid: isNowPaid,
+      paymentStatus: newStatus,
+      paymentProof: lateFeeModalBill.paymentProof
+        ? {
+            ...lateFeeModalBill.paymentProof,
+            paymentStatus: newStatus,
+          }
+        : undefined,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setLateFeeModalBill(null);
+    await handleSaveBill(updatedBill);
   };
 
   return (
@@ -1079,6 +1145,17 @@ export default function App() {
                     </button>
 
                     <div className="flex items-center gap-1">
+                      {/* Quick Add Late Fee for Unpaid / Partial Bills */}
+                      {bStatus !== 'PAID' && (
+                        <button
+                          onClick={() => handleQuickAddLateFee(bill)}
+                          className="px-2 py-1 text-[11px] font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                          title="Add Late Payment Fee"
+                        >
+                          + Late Fee
+                        </button>
+                      )}
+
                       {/* Edit Bill */}
                       <button
                         onClick={() => openEditBillModal(bill)}
@@ -1184,6 +1261,85 @@ export default function App() {
           onSavePayment={handleSavePayment}
           onViewReceiptFull={(url, title) => setLightboxData({ url, title })}
         />
+      )}
+
+      {/* MODAL 3B: Quick Late Payment Fee Modal */}
+      {lateFeeModalBill && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-stone-200 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3.5 bg-[#2C332B] text-white">
+              <div>
+                <span className="text-[10px] text-amber-200 uppercase tracking-widest font-bold block">
+                  {lateFeeModalBill.unit} · {lateFeeModalBill.billingPeriod}
+                </span>
+                <h3 className="font-semibold text-sm sm:text-base">Late Payment Fee</h3>
+              </div>
+              <button
+                onClick={() => setLateFeeModalBill(null)}
+                className="p-1 rounded-lg text-stone-300 hover:text-white hover:bg-stone-700/50 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmLateFee} className="p-4 flex flex-col gap-3.5">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                  Late Fee Amount (₱)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-stone-500">
+                    ₱
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={lateFeeInputAmount}
+                    onChange={(e) => setLateFeeInputAmount(e.target.value)}
+                    className="w-full text-base font-extrabold pl-8 pr-3 py-2 rounded-lg border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#2C332B] bg-stone-50 text-stone-900 tabular-nums"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  {[100, 200, 300, 500].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setLateFeeInputAmount(String(amt))}
+                      className="px-2.5 py-1 rounded-md bg-stone-100 hover:bg-rose-50 hover:text-rose-800 hover:border-rose-200 text-stone-700 text-xs font-semibold border border-stone-200 transition-colors cursor-pointer tabular-nums"
+                    >
+                      ₱{amt}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setLateFeeInputAmount('0')}
+                    className="px-2.5 py-1 rounded-md bg-stone-100 hover:bg-stone-200 text-stone-500 text-xs font-medium border border-stone-200 transition-colors cursor-pointer"
+                  >
+                    Remove (₱0)
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setLateFeeModalBill(null)}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-stone-600 hover:bg-stone-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-lg text-xs font-bold bg-[#2C332B] text-white hover:bg-[#1E231D] cursor-pointer"
+                >
+                  Apply Late Fee
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* MODAL 4: Fullscreen Payment Receipt Lightbox */}
